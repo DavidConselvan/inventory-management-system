@@ -137,6 +137,17 @@ dist
 !.yarn/sdks
 !.yarn/versions
 
+# ---- Python / Django ----
+__pycache__/
+*.py[cod]
+*.sqlite3
+.venv/
+venv/
+backend/staticfiles/
+.pytest_cache/
+.coverage
+htmlcov/
+
 # Vite files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
