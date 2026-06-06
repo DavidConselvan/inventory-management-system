@@ -9,8 +9,19 @@ The worked example from the brief (buy 100 units at $1, sell them at $10 for
 $1,000 revenue, $900 profit, 900% margin) is reproduced by the demo seed and
 checked by the test suite.
 
+## Live demo
+
+A live instance runs on Render's free tier, so the first request after it has
+been idle can take 30-60s to wake up:
+
+- App: https://inventory-frontend-47k5.onrender.com
+- API docs (Swagger): https://inventory-backend-h9o5.onrender.com/api/docs/
+
+Log in with `demo` / `demo12345`.
+
 ## Contents
 
+- [Live demo](#live-demo)
 - [Quick start (Docker)](#quick-start-docker)
 - [Tech stack](#tech-stack)
 - [Architecture and key decisions](#architecture-and-key-decisions)
@@ -130,15 +141,18 @@ erDiagram
         bigint id PK
         bigint owner_id FK
         string name
+        string description
         string sku "unique per owner"
         string unit "kg, g, L, mL, unit"
     }
     PurchaseOrder {
         bigint id PK
         bigint owner_id FK
-        date order_date
+        string reference
         string supplier
+        date order_date
         string status
+        string notes
     }
     PurchaseOrderItem {
         bigint id PK
@@ -161,9 +175,11 @@ erDiagram
     SalesOrder {
         bigint id PK
         bigint owner_id FK
-        date order_date
+        string reference
         string customer
+        date order_date
         string status
+        string notes
     }
     SalesOrderItem {
         bigint id PK
@@ -183,7 +199,8 @@ erDiagram
 
 Cardinality (crow's foot): `||--o{` is one-to-many, `||--|{` is one-to-one-or-more
 (every order has at least one line), and `||--o|` is one-to-zero-or-one (a received
-purchase line creates one lot; manually added lots have none).
+purchase line creates one lot; manually added lots have none). Every table also
+has `created_at` and `updated_at` timestamps, omitted above for brevity.
 
 - **Product**: name, description, SKU (unique per owner), unit (kg, g, L, mL or
   unit).
@@ -247,8 +264,12 @@ render.yaml               # one-click cloud deploy
 ## API reference
 
 Base URL is `/api`. Resource endpoints need an `Authorization: Bearer <access>`
-header. The full interactive docs are at `/api/docs/`, generated from the schema
-at `/api/schema/`.
+header.
+
+The **Swagger UI** is auto-generated from the code by drf-spectacular, so it
+always matches the running API. Browse it at `/api/docs/`
+([live](https://inventory-backend-h9o5.onrender.com/api/docs/)); the raw OpenAPI
+document is at `/api/schema/`.
 
 ### Auth
 
@@ -345,6 +366,11 @@ npm run dev
 ```
 
 ## Deployment (Render)
+
+Live instance:
+
+- App: https://inventory-frontend-47k5.onrender.com
+- API + Swagger: https://inventory-backend-h9o5.onrender.com/api/docs/
 
 `render.yaml` is a Render Blueprint: a managed Postgres database, the backend as
 a Dockerised web service, and the frontend as a static site.
