@@ -115,12 +115,75 @@ erDiagram
     Product ||--o{ StockLot : "stocked as"
 
     PurchaseOrder ||--|{ PurchaseOrderItem : contains
-    PurchaseOrderItem ||--o| StockLot : "creates"
+    PurchaseOrderItem ||--o| StockLot : creates
 
     SalesOrder ||--|{ SalesOrderItem : contains
-    SalesOrderItem ||--|{ StockAllocation : "drawn via"
+    SalesOrderItem ||--|{ StockAllocation : "drawn from"
     StockLot ||--o{ StockAllocation : "consumed by"
+
+    User {
+        bigint id PK
+        string username
+        string email
+    }
+    Product {
+        bigint id PK
+        bigint owner_id FK
+        string name
+        string sku "unique per owner"
+        string unit "kg, g, L, mL, unit"
+    }
+    PurchaseOrder {
+        bigint id PK
+        bigint owner_id FK
+        date order_date
+        string supplier
+        string status
+    }
+    PurchaseOrderItem {
+        bigint id PK
+        bigint purchase_order_id FK
+        bigint product_id FK
+        decimal quantity
+        decimal unit_cost
+    }
+    StockLot {
+        bigint id PK
+        bigint owner_id FK
+        bigint product_id FK
+        bigint source_item_id FK "null when manual"
+        string lot_code "unique"
+        decimal unit_cost
+        decimal quantity_received
+        decimal quantity_remaining
+        datetime received_date
+    }
+    SalesOrder {
+        bigint id PK
+        bigint owner_id FK
+        date order_date
+        string customer
+        string status
+    }
+    SalesOrderItem {
+        bigint id PK
+        bigint sales_order_id FK
+        bigint product_id FK
+        decimal quantity
+        decimal unit_price
+    }
+    StockAllocation {
+        bigint id PK
+        bigint sales_order_item_id FK
+        bigint stock_lot_id FK
+        decimal quantity
+        decimal unit_cost "lot cost snapshot"
+    }
 ```
+
+Cardinality (crow's foot): `||--o{` is one-to-many, `||--|{` is one-to-one-or-more
+(every order has at least one line), and `||--o|` is one-to-zero-or-one (a received
+purchase line creates one lot; manually added lots have none).
 
 - **Product**: name, description, SKU (unique per owner), unit (kg, g, L, mL or
   unit).
@@ -310,6 +373,11 @@ after a period of inactivity, so the first request may take a little while.
 - Margin is profit over COGS (markup), which is what the brief's 900% example
   asks for. Gross margin (profit over revenue) would be a one-line addition in
   `analytics.py`.
+- Auth tokens are stored in `localStorage`. That keeps the client simple and
+  survives refreshes and multiple tabs, but JavaScript can read it, so a
+  cross-site-scripting hole could leak a token. The usual hardening is to keep
+  the refresh token in an httpOnly, Secure, SameSite cookie and hold only a
+  short-lived access token in memory, behind a strict content-security policy.
+  I left it in `localStorage` here given the scope.
 - Worth adding later: low-stock and expiry alerts for perishables, CSV
   import/export, rotating refresh tokens, and rate limiting.
-```
