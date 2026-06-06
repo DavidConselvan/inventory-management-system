@@ -1,0 +1,20 @@
+/* Brand tokens for our own use. The cream page background (--mantine-color-body)
+   is set via MantineProvider's cssVariablesResolver in main.tsx so it reliably
+   wins precedence; cards stay white (--mantine-color-white) so they pop. */
+:root {
+  --brand-cream: #f8efe2;
+  --brand-forest: #123524;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Slightly tighter, more editorial headings to match the brand. */
+h1,
+h2,
+h3,
+.mantine-Title-root {
+  letter-spacing: -0.01em;
+}

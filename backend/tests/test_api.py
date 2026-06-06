@@ -112,6 +112,30 @@ def test_end_to_end_sale_computes_profit(auth):
     assert dash["totals"]["margin_percent"] == "900.00"
 
 
+def test_delete_unused_product_succeeds(auth):
+    product = auth.post(
+        PRODUCTS, {"name": "Throwaway", "sku": "TW-1", "unit": "UNIT"}, format="json"
+    ).data
+    assert auth.delete(f"{PRODUCTS}{product['id']}/").status_code == 204
+
+
+def test_delete_product_in_use_returns_409(auth):
+    """A product referenced by stock/orders can't be deleted — expect a clean
+    409, not a 500 from the underlying ProtectedError."""
+    product = auth.post(
+        PRODUCTS, {"name": "Has stock", "sku": "HS-1", "unit": "KG"}, format="json"
+    ).data
+    auth.post(
+        PURCHASE_ORDERS,
+        {
+            "order_date": "2024-01-01",
+            "items": [{"product": product["id"], "quantity": "10", "unit_cost": "1"}],
+        },
+        format="json",
+    )
+    assert auth.delete(f"{PRODUCTS}{product['id']}/").status_code == 409
+
+
 def test_oversell_returns_400(auth):
     product = auth.post(
         PRODUCTS, {"name": "Beans", "sku": "BN-3", "unit": "KG"}, format="json"
@@ -135,9 +159,8 @@ def test_oversell_returns_400(auth):
     assert resp.status_code == 400
 
 
-# ---------------------------------------------------------------------------
+
 # Data isolation
-# ---------------------------------------------------------------------------
 def test_user_cannot_see_others_products(auth, user, other_user):
     mine = auth.post(
         PRODUCTS, {"name": "Mine", "sku": "M-1", "unit": "UNIT"}, format="json"

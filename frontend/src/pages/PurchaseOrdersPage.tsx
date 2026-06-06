@@ -18,6 +18,7 @@ import {
   useDeletePurchaseOrder,
   usePurchaseOrders,
 } from '../api/purchaseOrders';
+import { confirmDelete } from '../lib/confirm';
 import { OrderFormModal, type OrderFormValues } from '../components/OrderFormModal';
 import { PageHeader } from '../components/PageHeader';
 import { QueryBoundary } from '../components/QueryBoundary';
@@ -50,15 +51,20 @@ export function PurchaseOrdersPage() {
     }
   };
 
-  const onDelete = async (id: number) => {
-    if (!confirm('Delete this purchase order?')) return;
-    try {
-      await remove.mutateAsync(id);
-      notifications.show({ color: 'green', message: 'Purchase order deleted' });
-    } catch (err) {
-      notifications.show({ color: 'red', title: 'Could not delete', message: errorMessage(err) });
-    }
-  };
+  const onDelete = (id: number) =>
+    confirmDelete({
+      title: 'Delete purchase order',
+      message:
+        'This removes the purchase order. Stock lots it already brought into inventory will remain.',
+      onConfirm: async () => {
+        try {
+          await remove.mutateAsync(id);
+          notifications.show({ color: 'green', message: 'Purchase order deleted' });
+        } catch (err) {
+          notifications.show({ color: 'red', title: 'Could not delete', message: errorMessage(err) });
+        }
+      },
+    });
 
   return (
     <>

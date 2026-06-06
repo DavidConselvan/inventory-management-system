@@ -30,6 +30,7 @@ import {
   type ProductInput,
 } from '../api/products';
 import { UNIT_OPTIONS, type Product } from '../api/types';
+import { confirmDelete } from '../lib/confirm';
 import { PageHeader } from '../components/PageHeader';
 import { QueryBoundary } from '../components/QueryBoundary';
 import { StatCard } from '../components/StatCard';
@@ -80,15 +81,19 @@ export function ProductsPage() {
     }
   });
 
-  const onDelete = async (product: Product) => {
-    if (!confirm(`Delete "${product.name}"?`)) return;
-    try {
-      await remove.mutateAsync(product.id);
-      notifications.show({ color: 'green', message: 'Product deleted' });
-    } catch (err) {
-      notifications.show({ color: 'red', title: 'Could not delete', message: errorMessage(err) });
-    }
-  };
+  const onDelete = (product: Product) =>
+    confirmDelete({
+      title: 'Delete product',
+      message: `"${product.name}" will be permanently removed. Products referenced by orders or stock can't be deleted.`,
+      onConfirm: async () => {
+        try {
+          await remove.mutateAsync(product.id);
+          notifications.show({ color: 'green', message: 'Product deleted' });
+        } catch (err) {
+          notifications.show({ color: 'red', title: 'Could not delete', message: errorMessage(err) });
+        }
+      },
+    });
 
   return (
     <>

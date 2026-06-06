@@ -51,7 +51,10 @@ export function RegisterPage() {
     <Center mih="100vh" p="md">
       <Paper withBorder shadow="md" p={32} radius="md" w={400} maw="100%">
         <Title order={2} ta="center" mb={4}>
-          Create your account
+          Create your{' '}
+          <Text span inherit fs="italic">
+            account
+          </Text>
         </Title>
         <Text c="dimmed" size="sm" ta="center" mb="lg">
           Start tracking inventory and profit

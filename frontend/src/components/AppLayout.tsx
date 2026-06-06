@@ -12,6 +12,7 @@ import {
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import {
+  IconAsterisk,
   IconBox,
   IconChartPie,
   IconLogout,
@@ -52,8 +53,13 @@ export function AppLayout() {
         <Group h="100%" px="md" justify="space-between">
           <Group gap="xs">
             <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" />
-            <IconBox size={26} />
-            <Title order={4}>Inventory</Title>
+            <IconAsterisk size={22} stroke={2.5} color="var(--brand-forest)" />
+            <Title order={3} fw={600}>
+              Kaizntree
+            </Title>
+            <Text size="sm" c="dimmed" visibleFrom="sm">
+              Inventory
+            </Text>
           </Group>
           <Menu position="bottom-end" withArrow>
             <Menu.Target>
@@ -94,7 +100,7 @@ export function AppLayout() {
           ))}
         </AppShell.Section>
         <AppShell.Section>
-          <Box className="text-xs text-gray-400">F&amp;B Inventory · v1.0</Box>
+          <Box className="text-xs text-gray-400">Operations for CPG · v1.0</Box>
         </AppShell.Section>
       </AppShell.Navbar>
 

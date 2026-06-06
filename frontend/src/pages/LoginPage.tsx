@@ -51,7 +51,10 @@ export function LoginPage() {
     <Center mih="100vh" p="md">
       <Paper withBorder shadow="md" p={32} radius="md" w={400} maw="100%">
         <Title order={2} ta="center" mb={4}>
-          Welcome back
+          Welcome{' '}
+          <Text span inherit fs="italic">
+            back
+          </Text>
         </Title>
         <Text c="dimmed" size="sm" ta="center" mb="lg">
           Sign in to your inventory workspace

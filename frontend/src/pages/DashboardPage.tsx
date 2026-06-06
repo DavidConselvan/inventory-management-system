@@ -64,7 +64,7 @@ export function DashboardPage() {
                 label="Profit"
                 value={money(d.totals.profit)}
                 icon={IconTrendingUp}
-                color="green"
+                color="forest"
               />
               <StatCard
                 label="Profit Margin"
@@ -111,7 +111,7 @@ export function DashboardPage() {
                   series={[
                     { name: 'Revenue', color: 'teal.6' },
                     { name: 'COGS', color: 'orange.6' },
-                    { name: 'Profit', color: 'green.6' },
+                    { name: 'Profit', color: 'forest.7' },
                   ]}
                   valueFormatter={(v) => money(v)}
                   withLegend

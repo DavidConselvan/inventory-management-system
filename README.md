@@ -1,115 +1,107 @@
 # Inventory Management System
 
-An inventory, purchasing, sales and **profit-analysis** application for Food &
-Beverage CPG brands. Users register products, bring stock in through purchase
-orders, sell it through sales orders, and get accurate per-product and
-portfolio-wide profit analysis — with every user seeing only their own data.
+A small operations platform for Food & Beverage CPG brands. You register
+products, bring stock in with purchase orders, sell it with sales orders, and
+see profit per product and across the whole business. Every user only sees their
+own data.
 
-> **Worked example (from the spec):** buy 100 units @ $1 ($100 cost), sell 100 @
-> $10 ($1,000 revenue) → **profit $900, margin 900 %**. This is reproduced by the
-> seed data and asserted by the test suite.
+The worked example from the brief (buy 100 units at $1, sell them at $10 for
+$1,000 revenue, $900 profit, 900% margin) is reproduced by the demo seed and
+checked by the test suite.
 
----
-
-## Table of contents
+## Contents
 
 - [Quick start (Docker)](#quick-start-docker)
 - [Tech stack](#tech-stack)
-- [Architecture & key decisions](#architecture--key-decisions)
-- [Data model (ERD)](#data-model-erd)
-- [How profit is calculated (FIFO)](#how-profit-is-calculated-fifo)
+- [Architecture and key decisions](#architecture-and-key-decisions)
+- [Data model](#data-model)
+- [How profit is calculated](#how-profit-is-calculated)
 - [Project structure](#project-structure)
 - [API reference](#api-reference)
-- [Authentication & data isolation](#authentication--data-isolation)
+- [Authentication and data isolation](#authentication-and-data-isolation)
 - [Testing](#testing)
-- [Local development (without Docker)](#local-development-without-docker)
+- [Local development without Docker](#local-development-without-docker)
 - [Deployment (Render)](#deployment-render)
-- [Trade-offs & what I'd do next](#trade-offs--what-id-do-next)
-
----
+- [Known limitations and next steps](#known-limitations-and-next-steps)
 
 ## Quick start (Docker)
 
-Requires Docker. From the repository root:
+You only need Docker. From the repository root:
 
 ```bash
 docker compose up --build
 ```
 
-This starts three services:
+That brings up three services:
 
-| Service    | URL                            | Notes                              |
-| ---------- | ------------------------------ | ---------------------------------- |
-| `db`       | localhost:5432                 | PostgreSQL 16                      |
-| `backend`  | http://localhost:8000          | Django REST API (auto-migrates)   |
-| `frontend` | http://localhost:5173          | React app (Vite dev server, HMR)  |
+| Service    | URL                     | Notes                            |
+| ---------- | ----------------------- | -------------------------------- |
+| `db`       | localhost:5432          | PostgreSQL 16                    |
+| `backend`  | http://localhost:8000   | Django REST API (auto-migrates)  |
+| `frontend` | http://localhost:5173   | React app (Vite dev server)      |
 
-On first start the backend **auto-seeds a demo account** with sample data (the
-worked example + extras), so the app isn't empty. Open
-**http://localhost:5173** and log in with:
+On first start the backend seeds a demo account so the app isn't empty. Open
+http://localhost:5173 and log in with:
 
 ```
 username: demo
 password: demo12345
 ```
 
-> Auto-seeding only runs when the demo user doesn't exist yet, so restarts never
-> wipe your data. To force a reset to the sample data at any time:
->
-> ```bash
-> docker compose exec backend python manage.py seed_demo
-> ```
+Seeding only runs when the demo user doesn't already exist, so restarting won't
+wipe anything. To reset back to the sample data:
 
-- **API docs (Swagger):** http://localhost:8000/api/docs/
-- **Django admin:** http://localhost:8000/admin/ (create a superuser with
-  `docker compose exec backend python manage.py createsuperuser`)
+```bash
+docker compose exec backend python manage.py seed_demo
+```
 
----
+API docs (Swagger UI) live at http://localhost:8000/api/docs/. For the Django
+admin, create a superuser with
+`docker compose exec backend python manage.py createsuperuser`.
 
 ## Tech stack
 
-**Backend** — Python 3.12, Django 5.2, Django REST Framework, PostgreSQL,
-`djangorestframework-simplejwt` (JWT auth), `drf-spectacular` (OpenAPI/Swagger),
-`django-filter`, WhiteNoise, Gunicorn. Tested with `pytest` + `pytest-django`.
+Backend: Python 3.12, Django 5.2, Django REST Framework, PostgreSQL, SimpleJWT
+for auth, drf-spectacular for the OpenAPI schema, django-filter, WhiteNoise and
+Gunicorn. Tests use pytest and pytest-django.
 
-**Frontend** — TypeScript, React 19 (Vite), Mantine 9 (UI), Tailwind 4 (utility
-styling), TanStack Query (server state), Axios (HTTP + JWT refresh), React Router.
+Frontend: TypeScript and React 19 (Vite), Mantine for components, Tailwind for
+the bits of utility styling Mantine doesn't cover, TanStack Query for server
+state, Axios for HTTP, and React Router.
 
-**Infra** — Docker / docker-compose, Render Blueprint (`render.yaml`).
+Infra: Docker Compose for local dev and a Render Blueprint (`render.yaml`) for
+deployment.
 
----
+## Architecture and key decisions
 
-## Architecture & key decisions
+**Two independent pieces.** `backend/` and `frontend/` talk only over the REST
+API, so either can be deployed or scaled on its own.
 
-**Monorepo, two deployables.** `backend/` (API) and `frontend/` (SPA) are
-independent and talk only over the REST API, so each can be deployed and scaled
-on its own.
+**Stock is tracked as lots, costed FIFO.** The brief says each stock has a unique
+identifier and that "product stocks are sold", so I modelled stock as discrete
+lots (`StockLot`), each with its own cost basis. A sale draws from the oldest
+lots first and records exactly how much it took from each. That gives a precise
+cost of goods sold per sale rather than a running-average approximation, matches
+how batch-based food goods actually move, and leaves an audit trail. The
+[profit section](#how-profit-is-calculated) walks through it.
 
-**Per-lot FIFO inventory costing.** The spec says *"each stock has a unique
-identifier"* and *"product stocks are sold"*. I modelled stock as discrete
-**lots** (`StockLot`), each carrying its own cost basis. Sales consume lots
-oldest-first and record the exact cost drawn from each lot. This gives accurate
-cost-of-goods-sold per sale (not an approximation), is the realistic model for
-batch-based F&B goods, and keeps a full audit trail. See
-[How profit is calculated](#how-profit-is-calculated-fifo).
+**JWT auth.** A React SPA fits stateless bearer tokens well. SimpleJWT issues an
+access and a refresh token; the frontend refreshes the access token on its own
+when it expires.
 
-**JWT authentication.** A React SPA pairs naturally with stateless bearer
-tokens. Access + refresh tokens via SimpleJWT; the frontend transparently
-refreshes expired access tokens (see [auth](#authentication--data-isolation)).
+**Data isolation is built into the base classes, not bolted on per view.** Every
+owned model has an `owner` foreign key. A shared viewset base (`OwnedQuerysetMixin`)
+filters every queryset to the current user and stamps the owner on create, and an
+`IsOwner` object permission backs it up. Serializers also reject foreign keys
+that point at another user's objects, so you can't, say, file a purchase order
+against someone else's product.
 
-**Data isolation by construction.** Every owned model carries an `owner` FK, and
-all viewsets inherit a base that filters every queryset to
-`owner=request.user` and stamps the owner on create, backed by an `IsOwner`
-object-level permission. A user literally cannot query another user's rows.
+**Business logic sits in plain functions, not views.** FIFO allocation is in
+`apps/inventory/services.py` and the profit math is in `apps/core/analytics.py`.
+Both are easy to unit test and are reused by the per-product endpoint and the
+dashboard.
 
-**Thin views, logic in services.** The FIFO allocation lives in
-`apps/inventory/services.py`, and profit aggregation in
-`apps/core/analytics.py` — so it's unit-testable in isolation and reused by both
-the per-product endpoint and the dashboard.
-
----
-
-## Data model (ERD)
+## Data model
 
 ```mermaid
 erDiagram
@@ -130,43 +122,40 @@ erDiagram
     StockLot ||--o{ StockAllocation : "consumed by"
 ```
 
-- **Product** — name, description, SKU (unique per owner), unit (`KG/G/L/ML/UNIT`).
-- **PurchaseOrder / PurchaseOrderItem** — buying stock; each item creates a `StockLot`.
-- **StockLot** — a batch with `unit_cost`, `quantity_received`,
-  `quantity_remaining`, `received_date`, and a unique `lot_code`. Manual stock
-  is a lot with no source purchase item.
-- **SalesOrder / SalesOrderItem** — selling stock; each item is filled FIFO.
-- **StockAllocation** — the FIFO ledger: which lot a sale drew from, how much,
-  and at what cost. A sale item's **COGS = Σ allocation cost**.
+- **Product**: name, description, SKU (unique per owner), unit (kg, g, L, mL or
+  unit).
+- **PurchaseOrder / PurchaseOrderItem**: buying stock. Each received item creates
+  a `StockLot`.
+- **StockLot**: a batch with a `unit_cost`, `quantity_received`,
+  `quantity_remaining`, `received_date` and a unique `lot_code`. Manually added
+  stock is just a lot with no source purchase item.
+- **SalesOrder / SalesOrderItem**: selling stock. Each item is filled FIFO.
+- **StockAllocation**: the FIFO ledger row recording which lot a sale drew from,
+  how much, and at what cost. A sale item's COGS is the sum of its allocations.
 
----
+## How profit is calculated
 
-## How profit is calculated (FIFO)
+When a sales-order item for some quantity is created, `allocate_stock_fifo` in
+`apps/inventory/services.py`:
 
-When a sales-order item for *Q* units is created
-(`apps/inventory/services.py::allocate_stock_fifo`):
+1. Locks the product's open lots (`select_for_update`) ordered oldest first.
+2. Draws the quantity across those lots, writing one `StockAllocation` per lot it
+   touches and decrementing each lot's remaining quantity.
+3. Rejects the whole sale and rolls back if there isn't enough stock, so you
+   can't oversell.
 
-1. The product's open lots are locked (`select_for_update`) and ordered oldest
-   first.
-2. Quantity is drawn greedily across lots, creating a `StockAllocation` per lot
-   touched and decrementing each lot's `quantity_remaining`.
-3. If on-hand stock is less than *Q*, the whole sale is rejected (no overselling)
-   and rolled back atomically.
-
-Then, for any product or for the whole account
-(`apps/core/analytics.py`):
+`apps/core/analytics.py` then derives the numbers for a product or the whole
+account:
 
 ```
-revenue  = Σ (sold_qty × unit_price)
-COGS     = Σ allocation cost          (exact lot costs consumed)
-profit   = revenue − COGS
-margin % = profit / COGS × 100        (so the spec example yields 900 %)
+revenue = sum(sold_qty * unit_price)
+cogs    = sum(allocation cost)        # the actual lot costs consumed
+profit  = revenue - cogs
+margin  = profit / cogs * 100         # 900% for the worked example
 ```
 
-Deleting a sales order **restores** the consumed quantities to their lots, so
+Deleting a sales order returns the consumed quantities to their lots, so
 inventory and COGS stay consistent.
-
----
 
 ## Project structure
 
@@ -174,8 +163,8 @@ inventory and COGS stay consistent.
 backend/
   config/                 # settings (env-driven), urls, wsgi
   apps/
-    core/                 # BaseOwnedModel, owner-scoped viewset, IsOwner,
-                          #   analytics (profit math), dashboard, seed_demo
+    core/                 # base owned model, owner-scoped viewset, IsOwner,
+                          #   profit analytics, dashboard, seed_demo
     accounts/             # register / me / JWT endpoints
     products/             # Product + per-product financials endpoint
     purchasing/           # PurchaseOrder + items (creates stock lots)
@@ -186,38 +175,39 @@ frontend/
   src/
     api/                  # axios client (JWT refresh) + typed TanStack hooks
     auth/                 # AuthProvider, token storage, ProtectedRoute
-    components/           # AppLayout, reusable form/table pieces
+    components/           # app shell and reusable UI pieces
     pages/                # login, register, dashboard, products, stock, orders
 docker-compose.yml        # db + backend + frontend for local dev
 render.yaml               # one-click cloud deploy
 ```
 
----
-
 ## API reference
 
-Base URL: `/api`. All resource endpoints require `Authorization: Bearer <access>`.
-Full interactive docs at **`/api/docs/`** (OpenAPI schema at `/api/schema/`).
+Base URL is `/api`. Resource endpoints need an `Authorization: Bearer <access>`
+header. The full interactive docs are at `/api/docs/`, generated from the schema
+at `/api/schema/`.
 
 ### Auth
-| Method | Path                   | Purpose                          |
-| ------ | ---------------------- | -------------------------------- |
-| POST   | `/auth/register/`      | Create an account                |
-| POST   | `/auth/token/`         | Log in → `access` + `refresh`    |
-| POST   | `/auth/token/refresh/` | Exchange refresh for new access  |
-| GET    | `/auth/me/`            | Current user                     |
 
-### Resources (CRUD via ViewSets, scoped to the current user)
-| Path                          | Notes                                                      |
-| ----------------------------- | ---------------------------------------------------------- |
-| `/products/`                  | CRUD. Search `?search=`, filter `?unit=`.                  |
-| `/products/{id}/financials/`  | Revenue, COGS, profit, margin, on-hand for one product.    |
-| `/stock-lots/`                | List/retrieve lots; `POST` adds stock manually.            |
-| `/purchase-orders/`           | CRUD with nested `items[]`; receiving creates stock lots.  |
-| `/sales-orders/`              | CRUD with nested `items[]`; selling consumes stock FIFO.   |
-| `/dashboard/`                 | Account-wide totals + per-product breakdown.               |
+| Method | Path                   | Purpose                         |
+| ------ | ---------------------- | ------------------------------- |
+| POST   | `/auth/register/`      | Create an account               |
+| POST   | `/auth/token/`         | Log in, returns access+refresh  |
+| POST   | `/auth/token/refresh/` | Exchange a refresh token        |
+| GET    | `/auth/me/`            | Current user                    |
 
-**Create a purchase order (and receive stock) in one call:**
+### Resources (CRUD via viewsets, scoped to the current user)
+
+| Path                         | Notes                                                     |
+| ---------------------------- | --------------------------------------------------------- |
+| `/products/`                 | CRUD. Search with `?search=`, filter with `?unit=`.       |
+| `/products/{id}/financials/` | Revenue, COGS, profit, margin and on-hand for a product.  |
+| `/stock-lots/`               | List and retrieve lots; POST adds stock manually.         |
+| `/purchase-orders/`          | CRUD with nested `items`; receiving creates stock lots.   |
+| `/sales-orders/`             | CRUD with nested `items`; selling consumes stock FIFO.    |
+| `/dashboard/`                | Account-wide totals plus a per-product breakdown.         |
+
+Create a purchase order and receive stock in one request:
 
 ```jsonc
 POST /api/purchase-orders/
@@ -228,7 +218,7 @@ POST /api/purchase-orders/
 }
 ```
 
-**Record a sale (COGS computed FIFO):**
+Record a sale (COGS is computed FIFO on the server):
 
 ```jsonc
 POST /api/sales-orders/
@@ -236,26 +226,22 @@ POST /api/sales-orders/
   "order_date": "2024-02-01",
   "items": [{ "product": 1, "quantity": "100", "unit_price": "10.00" }]
 }
-// → total_revenue 1000, total_cogs 100, total_profit 900
+// response includes total_revenue 1000, total_cogs 100, total_profit 900
 ```
 
----
+## Authentication and data isolation
 
-## Authentication & data isolation
+Logging in returns a short-lived access token (60 min) and a longer refresh
+token (7 days), kept in `localStorage`. The Axios client in
+`frontend/src/api/client.ts` adds the access token to every request; on a 401 it
+uses the refresh token to get a new access token and retries the original
+request, sharing one in-flight refresh so parallel requests don't each trigger
+their own. If the refresh fails the session is cleared and the user goes back to
+login.
 
-- Login returns short-lived **access** (60 min) and longer-lived **refresh**
-  (7 days) tokens, stored in `localStorage` on the client.
-- The Axios client (`frontend/src/api/client.ts`) attaches the access token to
-  every request and, on a `401`, transparently uses the refresh token to get a
-  new access token and replays the request (a single shared promise dedupes
-  concurrent refreshes). If refresh fails, the session is cleared and the user
-  is sent to login.
-- On the server, **every** owned queryset is filtered to the requesting user and
-  serializers reject foreign-key references to other users' objects, so one user
-  can never read or write another's products, orders or stock. This is covered
-  by tests.
-
----
+On the server, every owned queryset is filtered to the requesting user and
+serializers reject foreign keys to other users' objects. The data-isolation
+tests cover both read and write paths.
 
 ## Testing
 
@@ -263,27 +249,26 @@ POST /api/sales-orders/
 docker compose run --rm backend pytest -q
 ```
 
-The suite (`backend/tests/`) covers the core business logic and API contract:
+The suite focuses on the business logic and the API contract:
 
-- **FIFO & profit** — the exact worked example (profit 900 / margin 900 %),
-  multi-lot oldest-first consumption, partial sales, blended COGS.
-- **Guards** — overselling is rejected and leaves stock untouched.
-- **Aggregation** — product- and dashboard-level revenue/COGS/profit/margin.
-- **Model validation** — SKU unique per owner (shared across owners is fine).
-- **API** — auth required, register/login flow, nested order creation, and
-  **data isolation** between users.
+- FIFO and profit: the worked example, oldest-lot-first consumption across
+  multiple lots, partial sales, and blended COGS.
+- Guards: overselling is rejected and leaves stock untouched; deleting an
+  in-use product returns 409 rather than erroring.
+- Aggregation: product- and dashboard-level revenue, COGS, profit and margin.
+- Validation: SKU is unique per owner (and reusable across owners).
+- API: auth is required, register/login works, orders are created with their
+  line items, and users can't see or touch each other's data.
 
----
+## Local development without Docker
 
-## Local development (without Docker)
-
-Backend needs Python 3.12+ and a PostgreSQL instance.
+The backend needs Python 3.12+ and a PostgreSQL instance.
 
 ```bash
 cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env          # adjust POSTGRES_* / set POSTGRES_HOST=localhost
+cp .env.example .env          # set POSTGRES_HOST=localhost, adjust as needed
 python manage.py migrate
 python manage.py seed_demo
 python manage.py runserver
@@ -296,37 +281,33 @@ echo "VITE_API_BASE_URL=http://localhost:8000/api" > .env.local
 npm run dev
 ```
 
----
-
 ## Deployment (Render)
 
-`render.yaml` is a Render **Blueprint** describing a managed Postgres database, a
-Dockerised backend web service, and the frontend as a static site.
+`render.yaml` is a Render Blueprint: a managed Postgres database, the backend as
+a Dockerised web service, and the frontend as a static site.
 
-1. Push this repo to GitHub.
-2. On Render: **New + → Blueprint** and select the repo.
-3. After the first deploy, set the two cross-service URLs and redeploy:
-   - backend `CORS_ALLOWED_ORIGINS` → the frontend URL
-   - frontend `VITE_API_BASE_URL` → the backend URL + `/api`
+1. Push the repo to GitHub.
+2. On Render, choose New, then Blueprint, and pick the repo.
+3. After the first deploy, fill in the two cross-service URLs and redeploy:
+   `CORS_ALLOWED_ORIGINS` on the backend points at the frontend URL, and
+   `VITE_API_BASE_URL` on the frontend points at the backend URL plus `/api`.
 
-Both services run on the free tier. The backend Dockerfile serves static files
-via WhiteNoise and runs migrations on deploy.
+Both services fit the free tier. The backend serves its static files through
+WhiteNoise and runs migrations on deploy.
 
----
+## Known limitations and next steps
 
-## Trade-offs & what I'd do next
-
-- **Order line items are immutable** once created. A received purchase lot may
-  already be partly sold, and a sale already consumed specific lots — editing
-  them in place would corrupt the FIFO ledger. The clean, consistent model is:
-  delete (which restores stock) and recreate. Editable orders with ledger
-  reconciliation would be the next iteration.
-- **Dashboard aggregation** runs a handful of queries per product. Fine for
-  realistic catalog sizes; for very large catalogs I'd precompute or annotate in
-  a single grouped query.
-- **Margin = profit / COGS** (markup) to match the spec's 900 % example; a real
-  product might also surface gross margin (profit / revenue). Both are one line
-  in `analytics.py`.
-- **Next:** low-stock alerts, expiry/lot dates for F&B, CSV import/export,
-  rotating refresh tokens, and per-request rate limiting.
+- Order line items are fixed once an order is created. A received lot may already
+  be partly sold and a sale has already drawn from specific lots, so editing
+  items in place could corrupt the ledger. The supported edit is to delete the
+  order (a sale returns its stock) and create a new one. Editable orders with
+  proper ledger reconciliation would be a good follow-up.
+- Deleting a product that is referenced by orders or stock is blocked with a 409;
+  remove the dependent orders first. Deleting a purchase order keeps the lots it
+  brought in, since reversing received stock that may already be sold isn't safe.
+- Margin is profit over COGS (markup), which is what the brief's 900% example
+  asks for. Gross margin (profit over revenue) would be a one-line addition in
+  `analytics.py`.
+- Worth adding later: low-stock and expiry alerts for perishables, CSV
+  import/export, rotating refresh tokens, and rate limiting.
 ```

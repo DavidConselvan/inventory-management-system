@@ -18,6 +18,7 @@ import {
   useDeleteSalesOrder,
   useSalesOrders,
 } from '../api/salesOrders';
+import { confirmDelete } from '../lib/confirm';
 import { OrderFormModal, type OrderFormValues } from '../components/OrderFormModal';
 import { PageHeader } from '../components/PageHeader';
 import { QueryBoundary } from '../components/QueryBoundary';
@@ -50,15 +51,19 @@ export function SalesOrdersPage() {
     }
   };
 
-  const onDelete = async (id: number) => {
-    if (!confirm('Delete this sales order? Stock will be returned to inventory.')) return;
-    try {
-      await remove.mutateAsync(id);
-      notifications.show({ color: 'green', message: 'Sales order deleted — stock restored' });
-    } catch (err) {
-      notifications.show({ color: 'red', title: 'Could not delete', message: errorMessage(err) });
-    }
-  };
+  const onDelete = (id: number) =>
+    confirmDelete({
+      title: 'Delete sales order',
+      message: 'Deleting this sales order returns the sold stock to inventory.',
+      onConfirm: async () => {
+        try {
+          await remove.mutateAsync(id);
+          notifications.show({ color: 'green', message: 'Sales order deleted — stock restored' });
+        } catch (err) {
+          notifications.show({ color: 'red', title: 'Could not delete', message: errorMessage(err) });
+        }
+      },
+    });
 
   return (
     <>
