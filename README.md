@@ -292,8 +292,10 @@ a Dockerised web service, and the frontend as a static site.
    `CORS_ALLOWED_ORIGINS` on the backend points at the frontend URL, and
    `VITE_API_BASE_URL` on the frontend points at the backend URL plus `/api`.
 
-Both services fit the free tier. The backend serves its static files through
-WhiteNoise and runs migrations on deploy.
+Both services fit the free tier. On deploy the backend runs migrations, seeds
+the demo account (so you can log in at the live URL with demo / demo12345), and
+serves its static files through WhiteNoise. Note that free services cold-start
+after a period of inactivity, so the first request may take a little while.
 
 ## Known limitations and next steps
 
