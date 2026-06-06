@@ -16,11 +16,7 @@ services:
     plan: free
     dockerContext: ./backend
     dockerfilePath: ./backend/Dockerfile
-    dockerCommand: >
-      sh -c "python manage.py migrate --no-input &&
-             python manage.py seed_demo --skip-if-exists &&
-             python manage.py collectstatic --no-input &&
-             gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 3"
+    dockerCommand: sh ./entrypoint.sh
     envVars:
       - key: DJANGO_SECRET_KEY
         generateValue: true
