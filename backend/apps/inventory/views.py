@@ -1,24 +1,12 @@
-from rest_framework import mixins, viewsets
-
-from apps.core.viewsets import OwnedQuerysetMixin
+from apps.core.viewsets import OwnedModelViewSet
 
 from .models import StockLot
 from .serializers import StockLotSerializer
 
 
-class StockLotViewSet(
-    OwnedQuerysetMixin,
-    mixins.ListModelMixin,
-    mixins.RetrieveModelMixin,
-    mixins.CreateModelMixin,
-    viewsets.GenericViewSet,
-):
-    """List/inspect stock lots and add stock manually.
-
-    Lots are not editable or deletable through the API: their quantities are
-    driven by purchases (which create them) and sales (which consume them via
-    the FIFO ledger), so mutating them directly would corrupt COGS.
-    """
+class StockLotViewSet(OwnedModelViewSet):
+    """CRUD for stock lots. A lot sales have already drawn from can't be deleted
+    (returns 409), so cost of goods sold stays consistent."""
 
     queryset = StockLot.objects.select_related("product").all()
     serializer_class = StockLotSerializer

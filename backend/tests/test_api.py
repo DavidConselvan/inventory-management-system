@@ -159,6 +159,77 @@ def test_oversell_returns_400(auth):
     assert resp.status_code == 400
 
 
+# ---------------------------------------------------------------------------
+# Stock lot CRUD
+# ---------------------------------------------------------------------------
+def _product(auth, sku):
+    return auth.post(
+        PRODUCTS, {"name": sku, "sku": sku, "unit": "KG"}, format="json"
+    ).data
+
+
+def _manual_lot(auth, product_id, quantity, unit_cost):
+    return auth.post(
+        STOCK_LOTS,
+        {"product": product_id, "quantity_received": quantity, "unit_cost": unit_cost},
+        format="json",
+    ).data
+
+
+def test_edit_stock_lot_recomputes_remaining(auth):
+    product = _product(auth, "EDIT-1")
+    lot = _manual_lot(auth, product["id"], "50", "2")
+    resp = auth.put(
+        f"{STOCK_LOTS}{lot['id']}/",
+        {"product": product["id"], "quantity_received": "80", "unit_cost": "3"},
+        format="json",
+    )
+    assert resp.status_code == 200
+    assert resp.data["unit_cost"] == "3.0000"
+    # nothing sold yet, so remaining tracks the corrected received quantity
+    assert resp.data["quantity_remaining"] == "80.0000"
+
+
+def test_delete_unconsumed_stock_lot(auth):
+    product = _product(auth, "DEL-1")
+    lot = _manual_lot(auth, product["id"], "10", "1")
+    assert auth.delete(f"{STOCK_LOTS}{lot['id']}/").status_code == 204
+
+
+def test_delete_consumed_stock_lot_returns_409(auth):
+    product = _product(auth, "DEL-2")
+    _manual_lot(auth, product["id"], "10", "1")
+    auth.post(
+        SALES_ORDERS,
+        {
+            "order_date": "2024-02-01",
+            "items": [{"product": product["id"], "quantity": "5", "unit_price": "10"}],
+        },
+        format="json",
+    )
+    lot_id = auth.get(STOCK_LOTS).data["results"][0]["id"]
+    assert auth.delete(f"{STOCK_LOTS}{lot_id}/").status_code == 409
+
+
+def test_edit_stock_lot_below_consumed_rejected(auth):
+    product = _product(auth, "EDIT-2")
+    _manual_lot(auth, product["id"], "10", "1")
+    auth.post(
+        SALES_ORDERS,
+        {
+            "order_date": "2024-02-01",
+            "items": [{"product": product["id"], "quantity": "6", "unit_price": "10"}],
+        },
+        format="json",
+    )
+    lot_id = auth.get(STOCK_LOTS).data["results"][0]["id"]
+    resp = auth.put(
+        f"{STOCK_LOTS}{lot_id}/",
+        {"product": product["id"], "quantity_received": "5", "unit_cost": "1"},
+        format="json",
+    )
+    assert resp.status_code == 400  # can't drop below the 6 already sold
+
 
 # Data isolation
 def test_user_cannot_see_others_products(auth, user, other_user):

@@ -55,3 +55,22 @@ class StockLotSerializer(serializers.ModelSerializer):
         # Manually-added stock starts fully available.
         validated_data["quantity_remaining"] = validated_data["quantity_received"]
         return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        validated_data.pop("product", None)
+        consumed = instance.quantity_received - instance.quantity_remaining
+        new_received = validated_data.get("quantity_received", instance.quantity_received)
+        if new_received < consumed:
+            raise serializers.ValidationError(
+                {
+                    "quantity_received": (
+                        f"Can't drop below {consumed}, the amount already sold "
+                        "from this lot."
+                    )
+                }
+            )
+
+        instance = super().update(instance, validated_data)
+        instance.quantity_remaining = new_received - consumed
+        instance.save(update_fields=["quantity_remaining", "updated_at"])
+        return instance
