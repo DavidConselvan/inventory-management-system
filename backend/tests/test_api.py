@@ -110,6 +110,9 @@ def test_end_to_end_sale_computes_profit(auth):
     dash = auth.get("/api/dashboard/").data
     assert dash["totals"]["profit"] == "900.0000"
     assert dash["totals"]["margin_percent"] == "900.00"
+    # per-product breakdown row matches
+    assert dash["products"][0]["profit"] == "900.0000"
+    assert dash["products"][0]["cogs"] == "100.0000"
 
 
 def test_delete_unused_product_succeeds(auth):
@@ -229,6 +232,152 @@ def test_edit_stock_lot_below_consumed_rejected(auth):
         format="json",
     )
     assert resp.status_code == 400  # can't drop below the 6 already sold
+
+
+# ---------------------------------------------------------------------------
+# Order editing
+# ---------------------------------------------------------------------------
+def _po(auth, product_id, qty, cost):
+    return auth.post(
+        PURCHASE_ORDERS,
+        {
+            "order_date": "2024-01-01",
+            "items": [{"product": product_id, "quantity": qty, "unit_cost": cost}],
+        },
+        format="json",
+    ).data
+
+
+def _so(auth, product_id, qty, price):
+    return auth.post(
+        SALES_ORDERS,
+        {
+            "order_date": "2024-02-01",
+            "items": [{"product": product_id, "quantity": qty, "unit_price": price}],
+        },
+        format="json",
+    )
+
+
+def test_edit_sales_order_reallocates(auth):
+    product = _product(auth, "SOE-1")
+    _po(auth, product["id"], "100", "1")
+    so = _so(auth, product["id"], "40", "10").data
+
+    resp = auth.put(
+        f"{SALES_ORDERS}{so['id']}/",
+        {
+            "order_date": "2024-02-01",
+            "items": [{"product": product["id"], "quantity": "60", "unit_price": "10"}],
+        },
+        format="json",
+    )
+    assert resp.status_code == 200
+    assert resp.data["total_revenue"] == "600.0000"
+    assert resp.data["total_cogs"] == "60.0000"
+    assert auth.get(STOCK_LOTS).data["results"][0]["quantity_remaining"] == "40.0000"
+
+
+def test_edit_sales_order_oversell_rolls_back(auth):
+    product = _product(auth, "SOE-2")
+    _po(auth, product["id"], "10", "1")
+    so = _so(auth, product["id"], "5", "10").data
+
+    resp = auth.put(
+        f"{SALES_ORDERS}{so['id']}/",
+        {
+            "order_date": "2024-02-01",
+            "items": [{"product": product["id"], "quantity": "11", "unit_price": "10"}],
+        },
+        format="json",
+    )
+    assert resp.status_code == 400
+    # the original sale is untouched and stock is back as it was
+    assert auth.get(f"{SALES_ORDERS}{so['id']}/").data["total_revenue"] == "50.0000"
+    assert auth.get(STOCK_LOTS).data["results"][0]["quantity_remaining"] == "5.0000"
+
+
+def test_edit_po_header_allowed_after_stock_sold(auth):
+    product = _product(auth, "POE-1")
+    po = _po(auth, product["id"], "100", "1")
+    _so(auth, product["id"], "50", "10")
+
+    resp = auth.put(
+        f"{PURCHASE_ORDERS}{po['id']}/",
+        {
+            "order_date": "2024-01-01",
+            "supplier": "New Supplier",
+            "items": [{"product": product["id"], "quantity": "100", "unit_cost": "1"}],
+        },
+        format="json",
+    )
+    assert resp.status_code == 200
+    assert resp.data["supplier"] == "New Supplier"
+
+
+def test_edit_po_items_blocked_after_stock_sold(auth):
+    product = _product(auth, "POE-2")
+    po = _po(auth, product["id"], "100", "1")
+    _so(auth, product["id"], "50", "10")
+
+    resp = auth.put(
+        f"{PURCHASE_ORDERS}{po['id']}/",
+        {
+            "order_date": "2024-01-01",
+            "items": [{"product": product["id"], "quantity": "200", "unit_cost": "1"}],
+        },
+        format="json",
+    )
+    assert resp.status_code == 400
+
+
+def test_edit_po_items_rebuilds_lot_when_unconsumed(auth):
+    product = _product(auth, "POE-3")
+    po = _po(auth, product["id"], "100", "1")
+
+    resp = auth.put(
+        f"{PURCHASE_ORDERS}{po['id']}/",
+        {
+            "order_date": "2024-01-01",
+            "items": [{"product": product["id"], "quantity": "200", "unit_cost": "2"}],
+        },
+        format="json",
+    )
+    assert resp.status_code == 200
+    lot = auth.get(STOCK_LOTS).data["results"][0]
+    assert lot["quantity_received"] == "200.0000"
+    assert lot["unit_cost"] == "2.0000"
+
+
+# ---------------------------------------------------------------------------
+# Units
+# ---------------------------------------------------------------------------
+def test_unit_product_requires_whole_quantity(auth):
+    product = auth.post(
+        PRODUCTS, {"name": "Widget", "sku": "WGT-1", "unit": "UNIT"}, format="json"
+    ).data
+    resp = auth.post(
+        PURCHASE_ORDERS,
+        {
+            "order_date": "2024-01-01",
+            "items": [{"product": product["id"], "quantity": "1.5", "unit_cost": "1"}],
+        },
+        format="json",
+    )
+    assert resp.status_code == 400
+
+
+def test_weight_product_allows_fractional_quantity(auth):
+    product = _product(auth, "KG-FRAC")  # KG
+    resp = auth.post(
+        PURCHASE_ORDERS,
+        {
+            "order_date": "2024-01-01",
+            "items": [{"product": product["id"], "quantity": "1.5", "unit_cost": "2"}],
+        },
+        format="json",
+    )
+    assert resp.status_code == 201
 
 
 # Data isolation

@@ -16,6 +16,8 @@ import {
   IconTrendingUp,
 } from '@tabler/icons-react';
 
+import { useNavigate } from 'react-router-dom';
+
 import { useDashboard } from '../api/dashboard';
 import { QueryBoundary } from '../components/QueryBoundary';
 import { StatCard } from '../components/StatCard';
@@ -24,6 +26,7 @@ import { money, percent, qty } from '../lib/format';
 export function DashboardPage() {
   const query = useDashboard();
   const d = query.data;
+  const navigate = useNavigate();
 
   const chartData =
     d?.products
@@ -141,7 +144,11 @@ export function DashboardPage() {
                   </Table.Thead>
                   <Table.Tbody>
                     {d.products.map((p) => (
-                      <Table.Tr key={p.id}>
+                      <Table.Tr
+                        key={p.id}
+                        onClick={() => navigate(`/products/${p.id}`)}
+                        style={{ cursor: 'pointer' }}
+                      >
                         <Table.Td>
                           <Text fw={500}>{p.name}</Text>
                           <Text size="xs" c="dimmed">

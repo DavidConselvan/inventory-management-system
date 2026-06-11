@@ -8,6 +8,7 @@ django-environ==0.12.0
 psycopg[binary]==3.2.9
 gunicorn==23.0.0
 whitenoise==6.9.0
+anthropic>=0.40
 
 # tests
 pytest==8.4.0

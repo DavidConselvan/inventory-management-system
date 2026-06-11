@@ -1,7 +1,12 @@
 from django.db import transaction
 from rest_framework import serializers
 
-from apps.inventory.services import InsufficientStockError, allocate_stock_fifo
+from apps.inventory.services import (
+    InsufficientStockError,
+    allocate_stock_fifo,
+    release_allocations,
+)
+from apps.products.validators import check_whole_units
 
 from .models import SalesOrder, SalesOrderItem
 
@@ -30,6 +35,10 @@ class SalesOrderItemSerializer(serializers.ModelSerializer):
         if request and product.owner_id != request.user.id:
             raise serializers.ValidationError("Product not found.")
         return product
+
+    def validate(self, attrs):
+        check_whole_units(attrs.get("product"), attrs.get("quantity"))
+        return attrs
 
 
 class SalesOrderSerializer(serializers.ModelSerializer):
@@ -66,27 +75,35 @@ class SalesOrderSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("A sales order needs at least one item.")
         return items
 
+    def _allocate_items(self, order, items_data):
+        for item_data in items_data:
+            item = SalesOrderItem.objects.create(sales_order=order, **item_data)
+            try:
+                allocate_stock_fifo(item)
+            except InsufficientStockError as exc:
+                raise serializers.ValidationError({"items": str(exc)})
+
     @transaction.atomic
     def create(self, validated_data):
         items_data = validated_data.pop("items")
         order = SalesOrder.objects.create(**validated_data)
-        for item_data in items_data:
-            item = SalesOrderItem.objects.create(sales_order=order, **item_data)
-            try:
-                # FIFO-consume stock; the whole sale rolls back if any line
-                # can't be fulfilled (atomic).
-                allocate_stock_fifo(item)
-            except InsufficientStockError as exc:
-                raise serializers.ValidationError({"items": str(exc)})
+        self._allocate_items(order, items_data)
         return order
 
     @transaction.atomic
     def update(self, instance, validated_data):
-        # Items are immutable once allocated; only header fields can change.
-        # To change what was sold, delete the order (which restores stock) and
-        # create a new one.
-        validated_data.pop("items", None)
+        items_data = validated_data.pop("items", None)
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
-        return instance
+
+        if items_data is not None:
+            # Return the old lines' stock to its lots, then re-sell from scratch
+            # against current stock. If it no longer fits, the atomic block rolls
+            # the whole edit back to the original sale.
+            for item in instance.items.all():
+                release_allocations(item)
+            instance.items.all().delete()
+            self._allocate_items(instance, items_data)
+
+        return SalesOrder.objects.get(pk=instance.pk)

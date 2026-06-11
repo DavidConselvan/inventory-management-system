@@ -7,6 +7,7 @@ const LIST_PARAMS = { params: { page_size: 200, ordering: 'name' } };
 
 export const productKeys = {
   all: ['products'] as const,
+  detail: (id: number) => ['products', id] as const,
   financials: (id: number) => ['products', id, 'financials'] as const,
 };
 
@@ -17,6 +18,13 @@ export function useProducts() {
     queryKey: productKeys.all,
     queryFn: async () =>
       (await api.get<Paginated<Product>>('/products/', LIST_PARAMS)).data.results,
+  });
+}
+
+export function useProduct(id: number) {
+  return useQuery({
+    queryKey: productKeys.detail(id),
+    queryFn: async () => (await api.get<Product>(`/products/${id}/`)).data,
   });
 }
 

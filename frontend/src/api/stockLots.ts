@@ -3,9 +3,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
 import type { Paginated, StockLot } from './types';
 
-const LIST_PARAMS = { params: { page_size: 200, ordering: 'received_date' } };
-
-export const stockLotKeys = { all: ['stock-lots'] as const };
+export const stockLotKeys = {
+  all: ['stock-lots'] as const,
+  list: (productId?: number) => ['stock-lots', { productId }] as const,
+};
 
 export interface ManualStockInput {
   product: number;
@@ -14,11 +15,21 @@ export interface ManualStockInput {
   received_date?: string;
 }
 
-export function useStockLots() {
+function invalidateStock(qc: ReturnType<typeof useQueryClient>) {
+  qc.invalidateQueries({ queryKey: stockLotKeys.all });
+  qc.invalidateQueries({ queryKey: ['products'] });
+  qc.invalidateQueries({ queryKey: ['dashboard'] });
+}
+
+export function useStockLots(productId?: number) {
   return useQuery({
-    queryKey: stockLotKeys.all,
+    queryKey: stockLotKeys.list(productId),
     queryFn: async () =>
-      (await api.get<Paginated<StockLot>>('/stock-lots/', LIST_PARAMS)).data.results,
+      (
+        await api.get<Paginated<StockLot>>('/stock-lots/', {
+          params: { page_size: 200, ordering: 'received_date', product: productId },
+        })
+      ).data.results,
   });
 }
 
@@ -27,10 +38,23 @@ export function useAddStock() {
   return useMutation({
     mutationFn: async (input: ManualStockInput) =>
       (await api.post<StockLot>('/stock-lots/', input)).data,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: stockLotKeys.all });
-      qc.invalidateQueries({ queryKey: ['products'] });
-      qc.invalidateQueries({ queryKey: ['dashboard'] });
-    },
+    onSuccess: () => invalidateStock(qc),
+  });
+}
+
+export function useUpdateStock() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...input }: ManualStockInput & { id: number }) =>
+      (await api.put<StockLot>(`/stock-lots/${id}/`, input)).data,
+    onSuccess: () => invalidateStock(qc),
+  });
+}
+
+export function useDeleteStock() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => api.delete(`/stock-lots/${id}/`),
+    onSuccess: () => invalidateStock(qc),
   });
 }

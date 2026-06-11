@@ -7,7 +7,7 @@ from apps.products.models import Product
 from apps.purchasing.models import PurchaseOrder
 from apps.sales.models import SalesOrder
 
-from .analytics import product_financials, user_financials
+from .analytics import products_breakdown, user_financials
 from .serializers import DashboardSerializer
 
 
@@ -20,23 +20,24 @@ class DashboardView(APIView):
     @extend_schema(responses=DashboardSerializer)
     def get(self, request):
         user = request.user
-        products = Product.objects.filter(owner=user)
+        products = list(Product.objects.filter(owner=user))
+        breakdown = products_breakdown(products)
 
-        rows = []
-        for product in products:
-            row = {
-                "id": product.id,
-                "name": product.name,
-                "sku": product.sku,
-                "unit": product.unit,
+        rows = [
+            {
+                "id": p.id,
+                "name": p.name,
+                "sku": p.sku,
+                "unit": p.unit,
+                **breakdown[p.id],
             }
-            row.update(product_financials(product))
-            rows.append(row)
+            for p in products
+        ]
 
         data = {
             "totals": user_financials(user),
             "products": rows,
-            "product_count": products.count(),
+            "product_count": len(products),
             "purchase_order_count": PurchaseOrder.objects.filter(owner=user).count(),
             "sales_order_count": SalesOrder.objects.filter(owner=user).count(),
         }

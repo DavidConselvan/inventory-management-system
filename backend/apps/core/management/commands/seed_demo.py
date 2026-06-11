@@ -12,6 +12,7 @@ from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
+from apps.inventory.models import StockLot
 from apps.inventory.services import allocate_stock_fifo, create_lot_from_purchase_item
 from apps.products.models import Product
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderItem
@@ -42,8 +43,17 @@ class Command(BaseCommand):
             self.stdout.write("Demo user already exists — skipping seed.")
             return
 
-        # Wipe any previous demo data (owner FKs cascade on user delete).
-        User.objects.filter(username=DEMO_USERNAME).delete()
+        # Wipe any previous demo data. Product and StockLot use PROTECT, so a
+        # plain user cascade-delete raises; clear owned records in dependency
+        # order first (sales free lot allocations, then purchases, lots, products).
+        existing = User.objects.filter(username=DEMO_USERNAME).first()
+        if existing:
+            SalesOrder.objects.filter(owner=existing).delete()
+            PurchaseOrder.objects.filter(owner=existing).delete()
+            StockLot.objects.filter(owner=existing).delete()
+            Product.objects.filter(owner=existing).delete()
+            existing.delete()
+
         user = User.objects.create_user(
             username=DEMO_USERNAME, email="demo@example.com", password=DEMO_PASSWORD
         )

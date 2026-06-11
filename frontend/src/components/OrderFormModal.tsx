@@ -29,6 +29,7 @@ export interface OrderFormValues {
   reference: string;
   party: string;
   order_date: string;
+  status: string;
   notes: string;
   items: OrderItemValue[];
 }
@@ -40,12 +41,14 @@ interface OrderFormModalProps {
   products: Product[];
   partyLabel: string;
   priceLabel: string;
+  statusOptions: { value: string; label: string }[];
   submitting: boolean;
+  submitLabel?: string;
+  initial?: OrderFormValues | null;
   onSubmit: (values: OrderFormValues) => Promise<void>;
 }
 
 const today = () => new Date().toISOString().slice(0, 10);
-
 const emptyItem = (): OrderItemValue => ({ product: '', quantity: 1, price: 0 });
 
 export function OrderFormModal({
@@ -55,11 +58,23 @@ export function OrderFormModal({
   products,
   partyLabel,
   priceLabel,
+  statusOptions,
   submitting,
+  submitLabel = 'Create',
+  initial,
   onSubmit,
 }: OrderFormModalProps) {
+  const blank = (): OrderFormValues => ({
+    reference: '',
+    party: '',
+    order_date: today(),
+    status: statusOptions[0]?.value ?? '',
+    notes: '',
+    items: [emptyItem()],
+  });
+
   const form = useForm<OrderFormValues>({
-    initialValues: { reference: '', party: '', order_date: today(), notes: '', items: [emptyItem()] },
+    initialValues: blank(),
     validate: {
       order_date: (v) => (v ? null : 'Required'),
       items: {
@@ -69,21 +84,16 @@ export function OrderFormModal({
     },
   });
 
-  // Reset to a clean slate each time the modal opens.
   useEffect(() => {
-    if (opened) {
-      form.setValues({ reference: '', party: '', order_date: today(), notes: '', items: [emptyItem()] });
-    }
+    if (opened) form.setValues(initial ?? blank());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [opened]);
+  }, [opened, initial]);
 
   const productOptions = products.map((p) => ({ value: String(p.id), label: `${p.name} (${p.sku})` }));
-
   const total = form.values.items.reduce(
     (sum, it) => sum + Number(it.quantity || 0) * Number(it.price || 0),
     0,
   );
-
   const submit = form.onSubmit((values) => onSubmit(values));
 
   return (
@@ -100,11 +110,22 @@ export function OrderFormModal({
             <Grid.Col span={{ base: 12, sm: 6 }}>
               <TextInput type="date" label="Order date" withAsterisk {...form.getInputProps('order_date')} />
             </Grid.Col>
+            <Grid.Col span={{ base: 12, sm: 6 }}>
+              <Select
+                label="Status"
+                data={statusOptions}
+                allowDeselect={false}
+                {...form.getInputProps('status')}
+              />
+            </Grid.Col>
           </Grid>
 
           <Divider label="Line items" labelPosition="left" />
 
-          {form.values.items.map((item, index) => (
+          {form.values.items.map((item, index) => {
+            const lineProduct = products.find((p) => String(p.id) === item.product);
+            const wholeOnly = lineProduct?.unit === 'UNIT';
+            return (
             <Group key={index} align="flex-end" wrap="nowrap">
               <Select
                 label={index === 0 ? 'Product' : undefined}
@@ -117,7 +138,8 @@ export function OrderFormModal({
               <NumberInput
                 label={index === 0 ? 'Quantity' : undefined}
                 min={0}
-                decimalScale={4}
+                allowDecimal={!wholeOnly}
+                decimalScale={wholeOnly ? 0 : 4}
                 w={120}
                 {...form.getInputProps(`items.${index}.quantity`)}
               />
@@ -142,7 +164,8 @@ export function OrderFormModal({
                 <IconTrash size={18} />
               </ActionIcon>
             </Group>
-          ))}
+            );
+          })}
 
           <Group justify="space-between">
             <Button
@@ -163,7 +186,7 @@ export function OrderFormModal({
               Cancel
             </Button>
             <Button type="submit" loading={submitting}>
-              Create
+              {submitLabel}
             </Button>
           </Group>
         </Stack>

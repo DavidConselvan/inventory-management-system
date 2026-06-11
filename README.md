@@ -202,8 +202,9 @@ Cardinality (crow's foot): `||--o{` is one-to-many, `||--|{` is one-to-one-or-mo
 purchase line creates one lot; manually added lots have none). Every table also
 has `created_at` and `updated_at` timestamps, omitted above for brevity.
 
-- **Product**: name, description, SKU (unique per owner), unit (kg, g, L, mL or
-  unit).
+- **Product**: name, description, SKU (unique per owner), and a unit. Units fall
+  into three dimensions — mass (kg, g), volume (L, mL) and discrete count (unit);
+  discrete-unit products are constrained to whole-number quantities.
 - **PurchaseOrder / PurchaseOrderItem**: buying stock. Each received item creates
   a `StockLot`.
 - **StockLot**: a batch with a `unit_cost`, `quantity_received`,
@@ -234,8 +235,11 @@ profit  = revenue - cogs
 margin  = profit / cogs * 100         # 900% for the worked example
 ```
 
-Deleting a sales order returns the consumed quantities to their lots, so
-inventory and COGS stay consistent.
+Editing or deleting a sales order stays consistent with this: it releases the
+order's existing allocations (returning stock to the lots) and, on an edit,
+re-allocates the new lines FIFO — the whole change rolls back if the new lines no
+longer fit available stock. Purchase-order lines can only change while none of
+their received stock has been sold.
 
 ## Project structure
 
@@ -255,8 +259,8 @@ frontend/
   src/
     api/                  # axios client (JWT refresh) + typed TanStack hooks
     auth/                 # AuthProvider, token storage, ProtectedRoute
-    components/           # app shell and reusable UI pieces
-    pages/                # login, register, dashboard, products, stock, orders
+    components/           # app shell, data table, forms and reusable UI pieces
+    pages/                # auth, dashboard, and list + detail pages per entity
 docker-compose.yml        # db + backend + frontend for local dev
 render.yaml               # one-click cloud deploy
 ```
@@ -286,9 +290,9 @@ document is at `/api/schema/`.
 | ---------------------------- | --------------------------------------------------------- |
 | `/products/`                 | CRUD. Search with `?search=`, filter with `?unit=`.       |
 | `/products/{id}/financials/` | Revenue, COGS, profit, margin and on-hand for a product.  |
-| `/stock-lots/`               | List and retrieve lots; POST adds stock manually.         |
+| `/stock-lots/`               | Full CRUD; POST adds stock manually, PUT corrects a lot.  |
 | `/purchase-orders/`          | CRUD with nested `items`; receiving creates stock lots.   |
-| `/sales-orders/`             | CRUD with nested `items`; selling consumes stock FIFO.    |
+| `/sales-orders/`             | CRUD with nested `items`; selling and editing allocate FIFO. |
 | `/dashboard/`                | Account-wide totals plus a per-product breakdown.         |
 
 Create a purchase order and receive stock in one request:
@@ -339,10 +343,13 @@ The suite focuses on the business logic and the API contract:
   multiple lots, partial sales, and blended COGS.
 - Guards: overselling is rejected and leaves stock untouched; deleting an
   in-use product returns 409 rather than erroring.
+- Editing: sales-order edits re-allocate FIFO and roll back when stock no longer
+  fits; stock lots are full CRUD; purchase-order lines lock once their stock
+  sells; discrete-unit products reject fractional quantities.
 - Aggregation: product- and dashboard-level revenue, COGS, profit and margin.
 - Validation: SKU is unique per owner (and reusable across owners).
-- API: auth is required, register/login works, orders are created with their
-  line items, and users can't see or touch each other's data.
+- API: auth is required, register/login works, orders are created and edited
+  with their line items, and users can't see or touch each other's data.
 
 ## Local development without Docker
 
@@ -388,11 +395,13 @@ after a period of inactivity, so the first request may take a little while.
 
 ## Known limitations and next steps
 
-- Order line items are fixed once an order is created. A received lot may already
-  be partly sold and a sale has already drawn from specific lots, so editing
-  items in place could corrupt the ledger. The supported edit is to delete the
-  order (a sale returns its stock) and create a new one. Editable orders with
-  proper ledger reconciliation would be a good follow-up.
+- Sales orders are fully editable — an edit releases the order's FIFO
+  allocations, returns the stock, and re-allocates the new lines, rejecting the
+  change if stock no longer covers it. Purchase-order lines, by contrast, lock
+  once any of their received stock has been sold (only the header stays editable
+  then), because rewriting lots that downstream sales already drew from would
+  corrupt historical COGS. Allowing a guided "rebuild with reconciliation" on
+  consumed purchase orders would be a reasonable next step.
 - Deleting a product that is referenced by orders or stock is blocked with a 409;
   remove the dependent orders first. Deleting a purchase order keeps the lots it
   brought in, since reversing received stock that may already be sold isn't safe.
@@ -405,5 +414,8 @@ after a period of inactivity, so the first request may take a little while.
   the refresh token in an httpOnly, Secure, SameSite cookie and hold only a
   short-lived access token in memory, behind a strict content-security policy.
   I left it in `localStorage` here given the scope.
+- Each product has one unit. Converting within a dimension (e.g. receiving a
+  kilogram product in grams) would be a natural extension — the unit dimensions
+  are already modelled, so it's mostly a conversion layer on input.
 - Worth adding later: low-stock and expiry alerts for perishables, CSV
   import/export, rotating refresh tokens, and rate limiting.

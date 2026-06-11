@@ -31,16 +31,9 @@ def _margin(profit: Decimal, cost: Decimal):
     return None
 
 
-def financials_for(*, purchase_items, sales_items, allocations, lots) -> dict:
-    purchased_qty = _sum(purchase_items, "quantity")
-    purchased_cost = _sum(purchase_items, _product_expr("quantity", "unit_cost"))
-    sold_qty = _sum(sales_items, "quantity")
-    revenue = _sum(sales_items, _product_expr("quantity", "unit_price"))
-    cogs = _sum(allocations, _product_expr("quantity", "unit_cost"))
-    on_hand = _sum(lots, "quantity_remaining")
-    inventory_value = _sum(lots, _product_expr("quantity_remaining", "unit_cost"))
+def _assemble(*, purchased_qty, purchased_cost, sold_qty, revenue, cogs, on_hand,
+              inventory_value) -> dict:
     profit = revenue - cogs
-
     return {
         "purchased_quantity": purchased_qty,
         "purchased_cost": purchased_cost,
@@ -54,6 +47,18 @@ def financials_for(*, purchase_items, sales_items, allocations, lots) -> dict:
     }
 
 
+def financials_for(*, purchase_items, sales_items, allocations, lots) -> dict:
+    return _assemble(
+        purchased_qty=_sum(purchase_items, "quantity"),
+        purchased_cost=_sum(purchase_items, _product_expr("quantity", "unit_cost")),
+        sold_qty=_sum(sales_items, "quantity"),
+        revenue=_sum(sales_items, _product_expr("quantity", "unit_price")),
+        cogs=_sum(allocations, _product_expr("quantity", "unit_cost")),
+        on_hand=_sum(lots, "quantity_remaining"),
+        inventory_value=_sum(lots, _product_expr("quantity_remaining", "unit_cost")),
+    )
+
+
 def product_financials(product) -> dict:
     return financials_for(
         purchase_items=PurchaseOrderItem.objects.filter(product=product),
@@ -61,6 +66,49 @@ def product_financials(product) -> dict:
         allocations=StockAllocation.objects.filter(sales_order_item__product=product),
         lots=StockLot.objects.filter(product=product),
     )
+
+
+def products_breakdown(products) -> dict:
+    """Per-product financials for many products in a fixed number of grouped
+    queries, keyed by product id (avoids a per-product query fan-out)."""
+    ids = [p.pk for p in products]
+
+    def grouped(qs, group, **annotations):
+        return {r[group]: r for r in qs.values(group).annotate(**annotations)}
+
+    purchased = grouped(
+        PurchaseOrderItem.objects.filter(product_id__in=ids), "product",
+        qty=Sum("quantity", output_field=_money),
+        cost=Sum(_product_expr("quantity", "unit_cost"), output_field=_money),
+    )
+    sold = grouped(
+        SalesOrderItem.objects.filter(product_id__in=ids), "product",
+        qty=Sum("quantity", output_field=_money),
+        revenue=Sum(_product_expr("quantity", "unit_price"), output_field=_money),
+    )
+    cogs = grouped(
+        StockAllocation.objects.filter(sales_order_item__product_id__in=ids),
+        "sales_order_item__product",
+        v=Sum(_product_expr("quantity", "unit_cost"), output_field=_money),
+    )
+    lots = grouped(
+        StockLot.objects.filter(product_id__in=ids), "product",
+        on_hand=Sum("quantity_remaining", output_field=_money),
+        inv=Sum(_product_expr("quantity_remaining", "unit_cost"), output_field=_money),
+    )
+
+    rows = {}
+    for pid in ids:
+        rows[pid] = _assemble(
+            purchased_qty=purchased.get(pid, {}).get("qty") or ZERO,
+            purchased_cost=purchased.get(pid, {}).get("cost") or ZERO,
+            sold_qty=sold.get(pid, {}).get("qty") or ZERO,
+            revenue=sold.get(pid, {}).get("revenue") or ZERO,
+            cogs=cogs.get(pid, {}).get("v") or ZERO,
+            on_hand=lots.get(pid, {}).get("on_hand") or ZERO,
+            inventory_value=lots.get(pid, {}).get("inv") or ZERO,
+        )
+    return rows
 
 
 def user_financials(user) -> dict:

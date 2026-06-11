@@ -1,5 +1,7 @@
 from rest_framework import serializers
 
+from apps.products.validators import check_whole_units
+
 from .models import StockAllocation, StockLot
 
 
@@ -50,6 +52,14 @@ class StockLotSerializer(serializers.ModelSerializer):
         if request and product.owner_id != request.user.id:
             raise serializers.ValidationError("Product not found.")
         return product
+
+    def validate(self, attrs):
+        product = attrs.get("product") or getattr(self.instance, "product", None)
+        quantity = attrs.get("quantity_received")
+        if quantity is None and self.instance is not None:
+            quantity = self.instance.quantity_received
+        check_whole_units(product, quantity, field="quantity_received")
+        return attrs
 
     def create(self, validated_data):
         # Manually-added stock starts fully available.

@@ -3,6 +3,7 @@ from rest_framework import serializers
 
 from apps.inventory.services import create_lot_from_purchase_item
 from apps.products.models import Product
+from apps.products.validators import check_whole_units
 
 from .models import PurchaseOrder, PurchaseOrderItem
 
@@ -23,6 +24,10 @@ class PurchaseOrderItemSerializer(serializers.ModelSerializer):
         if request and product.owner_id != request.user.id:
             raise serializers.ValidationError("Product not found.")
         return product
+
+    def validate(self, attrs):
+        check_whole_units(attrs.get("product"), attrs.get("quantity"))
+        return attrs
 
 
 class PurchaseOrderSerializer(serializers.ModelSerializer):
@@ -51,22 +56,52 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("A purchase order needs at least one item.")
         return items
 
+    def _receive_items(self, order, items_data):
+        for item_data in items_data:
+            item = PurchaseOrderItem.objects.create(purchase_order=order, **item_data)
+            create_lot_from_purchase_item(item)
+
+    @staticmethod
+    def _items_changed(instance, items_data):
+        existing = [
+            (i.product_id, i.quantity, i.unit_cost) for i in instance.items.all()
+        ]
+        incoming = [
+            (d["product"].id, d["quantity"], d["unit_cost"]) for d in items_data
+        ]
+        return existing != incoming
+
+    @staticmethod
+    def _stock_consumed(instance):
+        return any(
+            lot.quantity_remaining != lot.quantity_received
+            for item in instance.items.all()
+            for lot in item.lots.all()
+        )
+
     @transaction.atomic
     def create(self, validated_data):
         items_data = validated_data.pop("items")
         order = PurchaseOrder.objects.create(**validated_data)
-        for item_data in items_data:
-            item = PurchaseOrderItem.objects.create(purchase_order=order, **item_data)
-            # Receiving the item brings a costed batch into stock.
-            create_lot_from_purchase_item(item)
+        self._receive_items(order, items_data)
         return order
 
     @transaction.atomic
     def update(self, instance, validated_data):
-        # Line items are immutable once received (lots may already be sold);
-        # only header fields can be edited. Add stock via a new purchase order.
-        validated_data.pop("items", None)
+        items_data = validated_data.pop("items", None)
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
-        return instance
+
+        if items_data is not None and self._items_changed(instance, items_data):
+            if self._stock_consumed(instance):
+                raise serializers.ValidationError(
+                    {"items": "Stock from this order has already been sold, so its "
+                              "lines can't be changed. Edit the header only."}
+                )
+            for item in instance.items.all():
+                item.lots.all().delete()
+            instance.items.all().delete()
+            self._receive_items(instance, items_data)
+
+        return PurchaseOrder.objects.get(pk=instance.pk)
