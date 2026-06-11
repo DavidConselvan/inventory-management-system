@@ -137,3 +137,10 @@ SPECTACULAR_SETTINGS = {
 }
 
 CORS_ALLOWED_ORIGINS = env("CORS_ALLOWED_ORIGINS")
+
+# ---------------------------------------------------------------------------
+# AI Ops Assistant (Claude). Optional — the assistant endpoint returns 503 if
+# no key is set, so the rest of the app runs without it.
+# ---------------------------------------------------------------------------
+ANTHROPIC_API_KEY = env("ANTHROPIC_API_KEY", default="")
+ASSISTANT_MODEL = env("ASSISTANT_MODEL", default="claude-opus-4-8")

@@ -3,6 +3,7 @@ import {
   Avatar,
   Box,
   Burger,
+  Button,
   Group,
   Menu,
   NavLink,
@@ -18,11 +19,13 @@ import {
   IconLogout,
   IconPackage,
   IconShoppingCart,
+  IconSparkles,
   IconTruckDelivery,
 } from '@tabler/icons-react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../auth/AuthContext';
+import { AssistantPanel } from './AssistantPanel';
 
 const NAV = [
   { to: '/', label: 'Dashboard', icon: IconChartPie },
@@ -34,6 +37,7 @@ const NAV = [
 
 export function AppLayout() {
   const [opened, { toggle, close }] = useDisclosure();
+  const [assistantOpened, assistant] = useDisclosure(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -61,26 +65,37 @@ export function AppLayout() {
               Inventory
             </Text>
           </Group>
-          <Menu position="bottom-end" withArrow>
-            <Menu.Target>
-              <Group gap="xs" style={{ cursor: 'pointer' }}>
-                <Avatar color="blue" radius="xl" size="sm">
-                  {user?.username?.[0]?.toUpperCase()}
-                </Avatar>
-                <Text size="sm" visibleFrom="sm">
-                  {user?.username}
-                </Text>
-              </Group>
-            </Menu.Target>
-            <Menu.Dropdown>
-              <Menu.Item
-                leftSection={<IconLogout size={16} />}
-                onClick={handleLogout}
-              >
-                Log out
-              </Menu.Item>
-            </Menu.Dropdown>
-          </Menu>
+          <Group gap="sm">
+            <Button
+              variant="light"
+              color="forest"
+              size="xs"
+              leftSection={<IconSparkles size={16} />}
+              onClick={assistant.open}
+            >
+              Ask JP
+            </Button>
+            <Menu position="bottom-end" withArrow>
+              <Menu.Target>
+                <Group gap="xs" style={{ cursor: 'pointer' }}>
+                  <Avatar color="blue" radius="xl" size="sm">
+                    {user?.username?.[0]?.toUpperCase()}
+                  </Avatar>
+                  <Text size="sm" visibleFrom="sm">
+                    {user?.username}
+                  </Text>
+                </Group>
+              </Menu.Target>
+              <Menu.Dropdown>
+                <Menu.Item
+                  leftSection={<IconLogout size={16} />}
+                  onClick={handleLogout}
+                >
+                  Log out
+                </Menu.Item>
+              </Menu.Dropdown>
+            </Menu>
+          </Group>
         </Group>
       </AppShell.Header>
 
@@ -107,6 +122,8 @@ export function AppLayout() {
       <AppShell.Main>
         <Outlet />
       </AppShell.Main>
+
+      <AssistantPanel opened={assistantOpened} onClose={assistant.close} />
     </AppShell>
   );
 }

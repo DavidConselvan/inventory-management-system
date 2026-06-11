@@ -18,3 +18,52 @@ h3,
 .mantine-Title-root {
   letter-spacing: -0.01em;
 }
+
+/* Markdown rendered inside JP's chat replies. */
+.jp-md {
+  font-size: 0.875rem;
+  line-height: 1.55;
+  overflow-x: auto;
+}
+.jp-md > :first-child {
+  margin-top: 0;
+}
+.jp-md > :last-child {
+  margin-bottom: 0;
+}
+.jp-md p {
+  margin: 0 0 0.5rem;
+}
+.jp-md ul,
+.jp-md ol {
+  margin: 0 0 0.5rem;
+  padding-left: 1.25rem;
+}
+.jp-md li {
+  margin: 0.1rem 0;
+}
+.jp-md strong {
+  font-weight: 600;
+}
+.jp-md code {
+  background: rgba(0, 0, 0, 0.06);
+  padding: 0.05rem 0.3rem;
+  border-radius: 4px;
+  font-size: 0.85em;
+}
+.jp-md table {
+  border-collapse: collapse;
+  margin: 0.25rem 0 0.5rem;
+  font-size: 0.8rem;
+}
+.jp-md th,
+.jp-md td {
+  border: 1px solid var(--mantine-color-gray-3);
+  padding: 0.2rem 0.5rem;
+  text-align: left;
+  white-space: nowrap;
+}
+.jp-md th {
+  background: var(--mantine-color-gray-1);
+  font-weight: 600;
+}

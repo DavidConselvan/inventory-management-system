@@ -12,6 +12,20 @@ class ProductFinancialRowSerializer(ProductFinancialsSerializer):
     unit = serializers.CharField()
 
 
+class AssistantMessageSerializer(serializers.Serializer):
+    role = serializers.ChoiceField(choices=["user", "assistant"])
+    content = serializers.CharField()
+
+
+class AssistantRequestSerializer(serializers.Serializer):
+    message = serializers.CharField()
+    history = AssistantMessageSerializer(many=True, required=False)
+
+
+class AssistantReplySerializer(serializers.Serializer):
+    reply = serializers.CharField()
+
+
 class DashboardSerializer(serializers.Serializer):
     totals = ProductFinancialsSerializer()
     products = ProductFinancialRowSerializer(many=True)

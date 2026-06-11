@@ -26,6 +26,10 @@ services:
         value: ".onrender.com"
       - key: CORS_ALLOWED_ORIGINS
         sync: false # set to the frontend URL, e.g. https://inventory-frontend.onrender.com
+      - key: ANTHROPIC_API_KEY
+        sync: false # optional — set to enable the JP AI assistant
+      - key: ASSISTANT_MODEL
+        value: claude-opus-4-8
       - key: POSTGRES_DB
         fromDatabase:
           name: inventory-db
