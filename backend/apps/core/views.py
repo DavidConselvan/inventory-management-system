@@ -1,4 +1,5 @@
 import json
+import logging
 
 from django.conf import settings
 from django.http import StreamingHttpResponse
@@ -14,7 +15,7 @@ from apps.purchasing.models import PurchaseOrder
 from apps.sales.models import SalesOrder
 
 from .analytics import products_breakdown, revenue_timeseries, user_financials
-from .assistant import run_assistant, stream_assistant
+from .assistant import assistant_error_message, run_assistant, stream_assistant
 from .exports import EXPORTERS, csv_response
 from .importing import ENTITY_SPECS, run_import, template_headers
 from .serializers import (
@@ -22,6 +23,8 @@ from .serializers import (
     AssistantRequestSerializer,
     DashboardSerializer,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class DashboardView(APIView):
@@ -87,8 +90,9 @@ class AssistantView(APIView):
         try:
             reply = run_assistant(request.user, message, history)
         except Exception as exc:
+            logger.exception("Assistant request failed")
             return Response(
-                {"detail": f"Assistant error: {exc}"},
+                {"detail": assistant_error_message(exc)},
                 status=status.HTTP_502_BAD_GATEWAY,
             )
         return Response({"reply": reply})
@@ -125,7 +129,9 @@ class AssistantStreamView(APIView):
                 for event in stream_assistant(user, message, history):
                     yield f"data: {json.dumps(event)}\n\n"
             except Exception as exc:
-                yield f"data: {json.dumps({'type': 'error', 'detail': str(exc)})}\n\n"
+                logger.exception("Assistant stream failed")
+                detail = assistant_error_message(exc)
+                yield f"data: {json.dumps({'type': 'error', 'detail': detail})}\n\n"
             yield 'data: {"type": "done"}\n\n'
 
         response = StreamingHttpResponse(events(), content_type="text/event-stream")

@@ -22,6 +22,21 @@ from .analytics import (
 
 MAX_TOOL_TURNS = 6
 
+
+def assistant_error_message(exc: Exception) -> str:
+    """Map an Anthropic SDK/API exception to a clean, user-facing message.
+
+    Never leaks keys, request ids or raw provider payloads to the client; the
+    real exception is logged server-side by the caller.
+    """
+    if isinstance(exc, (anthropic.AuthenticationError, anthropic.PermissionDeniedError)):
+        return "JP isn't configured correctly — the API key was rejected."
+    if isinstance(exc, anthropic.RateLimitError):
+        return "JP is busy right now — please try again in a moment."
+    if isinstance(exc, (anthropic.APIConnectionError, anthropic.APITimeoutError)):
+        return "Couldn't reach the assistant service — please try again."
+    return "The assistant hit an unexpected error — please try again."
+
 SYSTEM_PROMPT = (
     "You are JP, an AI operations assistant inside an inventory management app "
     "for Food & Beverage CPG brands. You help the signed-in user understand "

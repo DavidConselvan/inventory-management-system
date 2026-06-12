@@ -65,7 +65,9 @@ export function AssistantPanel({ opened, onClose }: AssistantPanelProps) {
         onFollowups: setFollowups,
       });
     } catch (err) {
-      setAnswer(errorMessage(err));
+      // streamAssistant throws an Error whose message is the (already clean)
+      // server detail; fall back to the generic helper for anything else.
+      setAnswer(err instanceof Error ? err.message : errorMessage(err));
     } finally {
       setStreaming(false);
     }
