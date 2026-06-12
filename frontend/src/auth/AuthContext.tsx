@@ -29,7 +29,9 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Only "loading" if there's a token to validate; otherwise we're settled
+  // immediately (avoids a synchronous setState inside the mount effect).
+  const [loading, setLoading] = useState(() => Boolean(tokens.access));
 
   const logout = useCallback(() => {
     tokens.clear();
@@ -38,10 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Restore the session on load if we have a token.
   useEffect(() => {
-    if (!tokens.access) {
-      setLoading(false);
-      return;
-    }
+    if (!tokens.access) return;
     fetchMe()
       .then(setUser)
       .catch(() => tokens.clear())

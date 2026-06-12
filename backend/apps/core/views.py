@@ -180,6 +180,10 @@ class ImportView(APIView):
         dry_run = str(request.data.get("dry_run", "true")).lower() != "false"
         try:
             result = run_import(request.user, entity, upload, dry_run=dry_run)
-        except Exception as exc:
-            return Response({"detail": f"Could not read the file: {exc}"}, status=400)
+        except Exception:
+            logger.exception("CSV import failed to parse")
+            return Response(
+                {"detail": "That file couldn't be read as a CSV. Make sure it's a UTF-8 .csv file."},
+                status=400,
+            )
         return Response(result)
