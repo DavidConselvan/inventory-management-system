@@ -453,31 +453,26 @@ npm run dev
 
 ## Deployment (Render)
 
-Live instance:
+The app is deployed on Render, described as a Blueprint in `render.yaml`: a
+managed PostgreSQL database, the backend as a Dockerised web service, and the
+frontend as a static site. Both run on the free tier.
 
 - App: https://inventory-frontend-47k5.onrender.com
 - API + Swagger: https://inventory-backend-h9o5.onrender.com/api/docs/
 
-`render.yaml` is a Render Blueprint: a managed Postgres database, the backend as
-a Dockerised web service, and the frontend as a static site.
+On each deploy the backend runs migrations, seeds the demo account, collects its
+static files (served by WhiteNoise) and starts under Gunicorn. The two
+cross-service URLs are wired through environment variables —
+`CORS_ALLOWED_ORIGINS` on the backend points at the frontend, and
+`VITE_API_BASE_URL` on the frontend points at the backend's `/api`.
+`ANTHROPIC_API_KEY` is an optional backend secret that turns on JP and the AI
+column-mapping; without it those endpoints return 503 and everything else is
+unaffected.
 
-1. Push the repo to GitHub.
-2. On Render, choose New, then Blueprint, and pick the repo.
-3. After the first deploy, fill in the two cross-service URLs and redeploy:
-   `CORS_ALLOWED_ORIGINS` on the backend points at the frontend URL, and
-   `VITE_API_BASE_URL` on the frontend points at the backend URL plus `/api`.
-4. Optional: set `ANTHROPIC_API_KEY` on the backend service to enable JP and AI
-   column-mapping on the live demo (it's declared `sync: false`, so Render won't
-   ask for it during the blueprint step).
-
-Both services fit the free tier. On deploy the backend runs migrations, seeds
-the demo account (so you can log in at the live URL with demo / demo12345), and
-serves its static files through WhiteNoise. Note that free services cold-start
-after a period of inactivity, so the first request may take a little while.
-
-Seeding on startup uses `--skip-if-exists`, so it won't overwrite an existing
-demo account. To refresh an already-deployed demo with new sample data, run
-`python manage.py seed_demo` from the backend service shell.
+The demo account is reseeded on every deploy, so the live demo always mirrors the
+committed sample data. Seeding only touches the `demo` user's own records (other
+accounts are left alone). Free-tier services cold-start after a period of
+inactivity, so the first request can take 30–60s to wake up.
 
 ## Known limitations and next steps
 

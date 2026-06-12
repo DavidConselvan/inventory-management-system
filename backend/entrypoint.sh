@@ -4,7 +4,11 @@
 set -e
 
 python manage.py migrate --no-input
-python manage.py seed_demo --skip-if-exists
+# Reseed the demo account on every deploy so the live demo always reflects the
+# committed sample data. seed_demo only ever touches the `demo` user's own
+# records (wiped and recreated in dependency order), so any other account's data
+# is untouched.
+python manage.py seed_demo
 python manage.py collectstatic --no-input
 
 # Threads (not just workers) so JP's streamed SSE replies don't block the rest
