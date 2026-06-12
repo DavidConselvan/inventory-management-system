@@ -1,12 +1,13 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { api } from './client';
-import type { Paginated, SalesOrder } from './types';
+import type { ListParams, Paginated, SalesOrder } from './types';
 
 const LIST_PARAMS = { params: { page_size: 200, ordering: '-order_date' } };
 
 export const salesOrderKeys = {
   all: ['sales-orders'] as const,
+  list: (params: ListParams) => ['sales-orders', 'list', params] as const,
   detail: (id: number) => ['sales-orders', id] as const,
 };
 
@@ -32,6 +33,14 @@ export function useSalesOrders() {
     queryKey: salesOrderKeys.all,
     queryFn: async () =>
       (await api.get<Paginated<SalesOrder>>('/sales-orders/', LIST_PARAMS)).data.results,
+  });
+}
+
+export function useSalesOrderList(params: ListParams) {
+  return useQuery({
+    queryKey: salesOrderKeys.list(params),
+    queryFn: async () => (await api.get<Paginated<SalesOrder>>('/sales-orders/', { params })).data,
+    placeholderData: keepPreviousData,
   });
 }
 

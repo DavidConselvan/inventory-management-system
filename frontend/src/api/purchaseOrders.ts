@@ -1,12 +1,13 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { api } from './client';
-import type { Paginated, PurchaseOrder } from './types';
+import type { ListParams, Paginated, PurchaseOrder } from './types';
 
 const LIST_PARAMS = { params: { page_size: 200, ordering: '-order_date' } };
 
 export const purchaseOrderKeys = {
   all: ['purchase-orders'] as const,
+  list: (params: ListParams) => ['purchase-orders', 'list', params] as const,
   detail: (id: number) => ['purchase-orders', id] as const,
 };
 
@@ -33,6 +34,15 @@ export function usePurchaseOrders() {
     queryFn: async () =>
       (await api.get<Paginated<PurchaseOrder>>('/purchase-orders/', LIST_PARAMS)).data
         .results,
+  });
+}
+
+export function usePurchaseOrderList(params: ListParams) {
+  return useQuery({
+    queryKey: purchaseOrderKeys.list(params),
+    queryFn: async () =>
+      (await api.get<Paginated<PurchaseOrder>>('/purchase-orders/', { params })).data,
+    placeholderData: keepPreviousData,
   });
 }
 

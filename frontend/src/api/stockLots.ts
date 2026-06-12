@@ -1,11 +1,12 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { api } from './client';
-import type { Paginated, StockLot } from './types';
+import type { ListParams, Paginated, StockLot } from './types';
 
 export const stockLotKeys = {
   all: ['stock-lots'] as const,
   list: (productId?: number) => ['stock-lots', { productId }] as const,
+  paged: (params: ListParams) => ['stock-lots', 'list', params] as const,
 };
 
 export interface ManualStockInput {
@@ -30,6 +31,14 @@ export function useStockLots(productId?: number) {
           params: { page_size: 200, ordering: 'received_date', product: productId },
         })
       ).data.results,
+  });
+}
+
+export function useStockLotList(params: ListParams) {
+  return useQuery({
+    queryKey: stockLotKeys.paged(params),
+    queryFn: async () => (await api.get<Paginated<StockLot>>('/stock-lots/', { params })).data,
+    placeholderData: keepPreviousData,
   });
 }
 

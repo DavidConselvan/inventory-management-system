@@ -14,7 +14,7 @@ class ProductViewSet(OwnedModelViewSet):
     serializer_class = ProductSerializer
     filterset_fields = ["unit"]
     search_fields = ["name", "sku", "description"]
-    ordering_fields = ["name", "sku", "created_at"]
+    ordering_fields = ["name", "sku", "unit", "created_at"]
 
     @extend_schema(responses=ProductFinancialsSerializer)
     @action(detail=True, methods=["get"])

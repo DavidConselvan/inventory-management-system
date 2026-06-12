@@ -1,11 +1,12 @@
-import { Badge, Card, Text } from '@mantine/core';
+import { Badge, Card, Select, Text } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { errorMessage } from '../api/client';
 import { useProducts } from '../api/products';
-import { useCreateSalesOrder, useSalesOrders } from '../api/salesOrders';
+import { useCreateSalesOrder, useSalesOrderList } from '../api/salesOrders';
 import type { SalesOrder } from '../api/types';
 import { DataTable, type Column } from '../components/DataTable';
 import { DataActions } from '../components/DataActions';
@@ -13,14 +14,22 @@ import { OrderFormModal, type OrderFormValues } from '../components/OrderFormMod
 import { PageHeader } from '../components/PageHeader';
 import { QueryBoundary } from '../components/QueryBoundary';
 import { money } from '../lib/format';
+import { useListControls } from '../lib/useListControls';
 
 const STATUS_OPTIONS = [
   { value: 'CONFIRMED', label: 'Confirmed' },
   { value: 'DRAFT', label: 'Draft' },
 ];
 
+const STATUS_FILTER = [
+  { value: '', label: 'All statuses' },
+  ...STATUS_OPTIONS,
+];
+
 export function SalesOrdersPage() {
-  const orders = useSalesOrders();
+  const [status, setStatus] = useState('');
+  const controls = useListControls({ ordering: '-order_date', filters: { status } });
+  const orders = useSalesOrderList(controls.params);
   const products = useProducts();
   const create = useCreateSalesOrder();
   const navigate = useNavigate();
@@ -51,23 +60,23 @@ export function SalesOrdersPage() {
     {
       key: 'reference',
       header: 'Reference',
-      sortValue: (o) => o.reference || `SO #${o.id}`,
+      sortField: 'reference',
       render: (o) => <Text fw={500}>{o.reference || `SO #${o.id}`}</Text>,
     },
-    { key: 'order_date', header: 'Date', sortValue: (o) => o.order_date },
-    { key: 'customer', header: 'Customer', sortValue: (o) => o.customer, render: (o) => o.customer || '—' },
+    { key: 'order_date', header: 'Date', sortField: 'order_date' },
+    { key: 'customer', header: 'Customer', sortField: 'customer', render: (o) => o.customer || '—' },
     {
       key: 'total_revenue',
       header: 'Revenue',
       align: 'right',
-      sortValue: (o) => Number(o.total_revenue),
+      sortField: 'revenue',
       render: (o) => money(o.total_revenue),
     },
     {
       key: 'total_profit',
       header: 'Profit',
       align: 'right',
-      sortValue: (o) => Number(o.total_profit),
+      sortField: 'profit',
       render: (o) => (
         <Badge color={Number(o.total_profit) >= 0 ? 'green' : 'red'} variant="light">
           {money(o.total_profit)}
@@ -91,13 +100,33 @@ export function SalesOrdersPage() {
       <Card withBorder radius="md" p="md">
         <QueryBoundary isLoading={orders.isLoading} isError={orders.isError} error={orders.error}>
           <DataTable
-            data={orders.data ?? []}
+            data={orders.data?.results ?? []}
             columns={columns}
             getRowKey={(o) => o.id}
-            searchText={(o) => `${o.reference} ${o.customer}`}
             searchPlaceholder="Search sales orders…"
             onRowClick={(o) => navigate(`/sales-orders/${o.id}`)}
-            emptyMessage="No sales orders yet."
+            emptyMessage="No sales orders match. Adjust your search or filter."
+            server={{
+              search: controls.search,
+              onSearch: controls.setSearch,
+              ordering: controls.ordering,
+              onOrder: controls.onOrder,
+              page: controls.page,
+              onPage: controls.setPage,
+              total: orders.data?.count ?? 0,
+              pageSize: controls.pageSize,
+              loading: orders.isFetching,
+            }}
+            filters={
+              <Select
+                data={STATUS_FILTER}
+                value={status}
+                onChange={(v) => setStatus(v ?? '')}
+                aria-label="Filter by status"
+                w={160}
+                allowDeselect={false}
+              />
+            }
           />
         </QueryBoundary>
       </Card>

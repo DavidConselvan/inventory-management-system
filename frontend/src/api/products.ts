@@ -1,23 +1,34 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { api } from './client';
-import type { Financials, Paginated, Product } from './types';
+import type { Financials, ListParams, Paginated, Product } from './types';
 
 const LIST_PARAMS = { params: { page_size: 200, ordering: 'name' } };
 
 export const productKeys = {
   all: ['products'] as const,
+  list: (params: ListParams) => ['products', 'list', params] as const,
   detail: (id: number) => ['products', id] as const,
   financials: (id: number) => ['products', id, 'financials'] as const,
 };
 
 export type ProductInput = Pick<Product, 'name' | 'description' | 'sku' | 'unit'>;
 
+/** All products (unpaginated) — for dropdowns and pickers. */
 export function useProducts() {
   return useQuery({
     queryKey: productKeys.all,
     queryFn: async () =>
       (await api.get<Paginated<Product>>('/products/', LIST_PARAMS)).data.results,
+  });
+}
+
+/** Server-side searched / filtered / ordered / paginated list — for the table. */
+export function useProductList(params: ListParams) {
+  return useQuery({
+    queryKey: productKeys.list(params),
+    queryFn: async () => (await api.get<Paginated<Product>>('/products/', { params })).data,
+    placeholderData: keepPreviousData,
   });
 }
 

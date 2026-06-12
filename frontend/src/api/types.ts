@@ -21,6 +21,9 @@ export interface Paginated<T> {
   results: T[];
 }
 
+/** Query params for a server-side list: search, ordering, paging + filters. */
+export type ListParams = Record<string, string | number | undefined>;
+
 export interface Product {
   id: number;
   name: string;
