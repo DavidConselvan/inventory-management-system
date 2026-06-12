@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { errorMessage } from '../api/client';
 import { useDeleteProduct, useProducts } from '../api/products';
 import type { Product } from '../api/types';
+import { DataActions } from '../components/DataActions';
 import { DataTable, type Column } from '../components/DataTable';
 import { PageHeader } from '../components/PageHeader';
 import { ProductFormModal } from '../components/ProductFormModal';
@@ -72,11 +73,14 @@ export function ProductsPage() {
   return (
     <>
       <PageHeader
+        eyebrow="Catalog"
         title="Products"
         subtitle="Your catalog — click a product to view its stock and financials"
         actionLabel="New product"
         onAction={modal.open}
-      />
+      >
+        <DataActions entity="products" label="Products" />
+      </PageHeader>
 
       <Card withBorder radius="md" p="md">
         <QueryBoundary isLoading={products.isLoading} isError={products.isError} error={products.error}>

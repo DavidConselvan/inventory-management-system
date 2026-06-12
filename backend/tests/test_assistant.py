@@ -18,8 +18,9 @@ def test_assistant_requires_auth(api):
     assert api.post(ASSISTANT, {"message": "hi"}, format="json").status_code == 401
 
 
-def test_assistant_503_without_api_key(auth):
-    # No ANTHROPIC_API_KEY is set in the test env, so the endpoint degrades.
+def test_assistant_503_without_api_key(auth, settings):
+    # With no key configured the endpoint degrades gracefully rather than 500.
+    settings.ANTHROPIC_API_KEY = ""
     resp = auth.post(ASSISTANT, {"message": "what's my profit?"}, format="json")
     assert resp.status_code == 503
 

@@ -26,9 +26,23 @@ class AssistantReplySerializer(serializers.Serializer):
     reply = serializers.CharField()
 
 
+class TrendPointSerializer(serializers.Serializer):
+    """One month of the revenue / COGS / profit / margin time series."""
+
+    period = serializers.CharField()
+    label = serializers.CharField()
+    revenue = serializers.DecimalField(max_digits=18, decimal_places=4)
+    cogs = serializers.DecimalField(max_digits=18, decimal_places=4)
+    profit = serializers.DecimalField(max_digits=18, decimal_places=4)
+    margin_percent = serializers.DecimalField(
+        max_digits=18, decimal_places=2, allow_null=True
+    )
+
+
 class DashboardSerializer(serializers.Serializer):
     totals = ProductFinancialsSerializer()
     products = ProductFinancialRowSerializer(many=True)
+    trend = TrendPointSerializer(many=True)
     product_count = serializers.IntegerField()
     purchase_order_count = serializers.IntegerField()
     sales_order_count = serializers.IntegerField()

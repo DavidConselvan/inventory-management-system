@@ -9,6 +9,7 @@ import { errorMessage } from '../api/client';
 import { useProducts } from '../api/products';
 import { useDeleteStock, useStockLots } from '../api/stockLots';
 import type { StockLot } from '../api/types';
+import { DataActions } from '../components/DataActions';
 import { DataTable, type Column } from '../components/DataTable';
 import { PageHeader } from '../components/PageHeader';
 import { QueryBoundary } from '../components/QueryBoundary';
@@ -102,11 +103,14 @@ export function StockPage() {
   return (
     <>
       <PageHeader
+        eyebrow="Inventory"
         title="Stock"
         subtitle="Every lot of stock with its own cost basis (FIFO)"
         actionLabel="Add stock"
         onAction={openAdd}
-      />
+      >
+        <DataActions entity="stock" label="Stock" />
+      </PageHeader>
 
       <Card withBorder radius="md" p="md">
         <QueryBoundary isLoading={lots.isLoading} isError={lots.isError} error={lots.error}>

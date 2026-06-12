@@ -4,10 +4,11 @@ Centralises the profit math so the product endpoint and the dashboard agree.
 Margin is profit / COGS (so the spec's "buy 100 @ $1, sell 100 @ $10" yields
 profit 900 and margin 900%).
 """
+from datetime import date
 from decimal import Decimal
 
 from django.db.models import DecimalField, ExpressionWrapper, F, Sum
-from django.db.models.functions import Coalesce
+from django.db.models.functions import Coalesce, TruncMonth
 
 from apps.inventory.models import StockAllocation, StockLot
 from apps.purchasing.models import PurchaseOrderItem
@@ -119,3 +120,56 @@ def user_financials(user) -> dict:
         allocations=StockAllocation.objects.filter(sales_order_item__sales_order__owner=user),
         lots=StockLot.objects.filter(owner=user),
     )
+
+
+def _next_month(d: date) -> date:
+    return date(d.year + d.month // 12, d.month % 12 + 1, 1)
+
+
+def revenue_timeseries(user) -> list:
+    """Monthly revenue / COGS / profit / margin from the user's sales.
+
+    Both revenue and COGS are realised at sale time (FIFO allocations carry the
+    cost of the lots drawn), so grouping sales by ``order_date`` month gives a
+    true P&L time series with no extra data. Empty months between the first and
+    last sale are filled with zeros so the chart line stays continuous.
+    """
+    by_month = (
+        SalesOrderItem.objects.filter(sales_order__owner=user)
+        .annotate(m=TruncMonth("sales_order__order_date"))
+        .values("m")
+        .annotate(revenue=Sum(_product_expr("quantity", "unit_price"), output_field=_money))
+    )
+    revenue = {r["m"]: r["revenue"] for r in by_month}
+    cogs = {
+        r["m"]: r["cogs"]
+        for r in StockAllocation.objects.filter(
+            sales_order_item__sales_order__owner=user
+        )
+        .annotate(m=TruncMonth("sales_order_item__sales_order__order_date"))
+        .values("m")
+        .annotate(cogs=Sum(_product_expr("quantity", "unit_cost"), output_field=_money))
+    }
+
+    months = sorted(set(revenue) | set(cogs))
+    if not months:
+        return []
+
+    series = []
+    cursor = months[0]
+    while cursor <= months[-1]:
+        rev = revenue.get(cursor, ZERO)
+        cog = cogs.get(cursor, ZERO)
+        profit = rev - cog
+        series.append(
+            {
+                "period": cursor.isoformat(),
+                "label": cursor.strftime("%b %Y"),
+                "revenue": rev,
+                "cogs": cog,
+                "profit": profit,
+                "margin_percent": _margin(profit, cog),
+            }
+        )
+        cursor = _next_month(cursor)
+    return series

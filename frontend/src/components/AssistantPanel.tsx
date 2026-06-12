@@ -2,9 +2,11 @@ import {
   ActionIcon,
   Badge,
   Box,
-  Drawer,
+  Button,
   Group,
+  Kbd,
   Loader,
+  Modal,
   Paper,
   ScrollArea,
   Stack,
@@ -13,11 +15,10 @@ import {
 } from '@mantine/core';
 import { IconSend, IconSparkles } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 
-import { useAssistant, type ChatTurn } from '../api/assistant';
+import { streamAssistant, type ChatTurn } from '../api/assistant';
 import { errorMessage } from '../api/client';
+import { JpMarkdown } from './JpMarkdown';
 
 const SUGGESTIONS = [
   'What is my best-margin product?',
@@ -32,106 +33,147 @@ interface AssistantPanelProps {
 
 export function AssistantPanel({ opened, onClose }: AssistantPanelProps) {
   const [messages, setMessages] = useState<ChatTurn[]>([]);
+  const [followups, setFollowups] = useState<string[]>([]);
+  const [streaming, setStreaming] = useState(false);
   const [input, setInput] = useState('');
-  const assistant = useAssistant();
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const viewport = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, assistant.isPending]);
+    viewport.current?.scrollTo({ top: viewport.current.scrollHeight, behavior: 'smooth' });
+  }, [messages, streaming]);
 
   const send = async (text: string) => {
     const message = text.trim();
-    if (!message || assistant.isPending) return;
+    if (!message || streaming) return;
+
     const history = messages;
-    setMessages((m) => [...m, { role: 'user', content: message }]);
+    setMessages((m) => [...m, { role: 'user', content: message }, { role: 'assistant', content: '' }]);
     setInput('');
+    setFollowups([]);
+    setStreaming(true);
+
+    const setAnswer = (content: string) =>
+      setMessages((m) => {
+        const copy = [...m];
+        copy[copy.length - 1] = { role: 'assistant', content };
+        return copy;
+      });
+
     try {
-      const reply = await assistant.mutateAsync({ message, history });
-      setMessages((m) => [...m, { role: 'assistant', content: reply }]);
+      await streamAssistant(message, history, {
+        onText: setAnswer,
+        onFollowups: setFollowups,
+      });
     } catch (err) {
-      setMessages((m) => [...m, { role: 'assistant', content: errorMessage(err) }]);
+      setAnswer(errorMessage(err));
+    } finally {
+      setStreaming(false);
     }
   };
 
+  const empty = messages.length === 0;
+  const lastIsEmptyAssistant =
+    streaming && messages.at(-1)?.role === 'assistant' && !messages.at(-1)?.content;
+
   return (
-    <Drawer
+    <Modal
       opened={opened}
       onClose={onClose}
-      position="right"
-      size="md"
+      size="lg"
+      radius="md"
+      yOffset="8vh"
+      overlayProps={{ backgroundOpacity: 0.5, blur: 3 }}
+      transitionProps={{ transition: 'pop', duration: 150 }}
+      padding="lg"
       title={
         <Group gap="xs">
           <IconSparkles size={18} color="var(--brand-forest)" />
-          <Text fw={600}>JP</Text>
+          <Text ff="heading" fw={500} fz="lg">
+            JP
+          </Text>
           <Badge size="xs" variant="light" color="forest">
             AI Ops Assistant
           </Badge>
         </Group>
       }
     >
-      <Stack h="calc(100vh - 100px)" justify="space-between" gap="sm">
-        <ScrollArea style={{ flex: 1 }} type="auto">
-          <Stack gap="sm" pr="sm">
-            {messages.length === 0 && (
-              <Stack gap="xs" py="md">
-                <Text size="sm" c="dimmed">
-                  Ask about your inventory, stock and profitability. Try:
-                </Text>
-                {SUGGESTIONS.map((s) => (
-                  <Badge
-                    key={s}
-                    variant="outline"
-                    color="forest"
-                    style={{ cursor: 'pointer', textTransform: 'none' }}
-                    onClick={() => send(s)}
-                  >
-                    {s}
-                  </Badge>
-                ))}
-              </Stack>
-            )}
-
-            {messages.map((m, i) => (
-              <Box
-                key={i}
-                style={{ alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '90%' }}
-              >
-                <Paper
-                  p="sm"
-                  radius="md"
-                  withBorder={m.role === 'assistant'}
-                  bg={m.role === 'user' ? 'forest.9' : 'white'}
-                  c={m.role === 'user' ? 'white' : undefined}
+      <Stack gap="md" h="min(64vh, 560px)">
+        <ScrollArea style={{ flex: 1 }} viewportRef={viewport} type="auto">
+          {empty ? (
+            <Stack gap="sm" pt="xs">
+              <Text size="sm" c="dimmed">
+                Ask about your inventory, stock and profitability — JP reads your live
+                data. Try one of these:
+              </Text>
+              {SUGGESTIONS.map((s) => (
+                <Button
+                  key={s}
+                  variant="default"
+                  size="xs"
+                  radius="xl"
+                  justify="flex-start"
+                  onClick={() => send(s)}
+                  style={{ alignSelf: 'flex-start' }}
                 >
-                  {m.role === 'assistant' ? (
-                    <div className="jp-md">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
-                    </div>
-                  ) : (
-                    <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>
-                      {m.content}
-                    </Text>
-                  )}
-                </Paper>
-              </Box>
-            ))}
+                  {s}
+                </Button>
+              ))}
+            </Stack>
+          ) : (
+            <Stack gap="sm" pr="sm">
+              {messages.map((m, i) => (
+                <Box
+                  key={i}
+                  style={{ alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '92%' }}
+                >
+                  <Paper
+                    p="sm"
+                    radius="md"
+                    withBorder={m.role === 'assistant'}
+                    bg={m.role === 'user' ? 'forest.9' : 'white'}
+                    c={m.role === 'user' ? 'white' : undefined}
+                  >
+                    {m.role === 'assistant' ? (
+                      m.content ? (
+                        <JpMarkdown content={m.content} onNavigate={onClose} />
+                      ) : (
+                        <Loader size="xs" type="dots" />
+                      )
+                    ) : (
+                      <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>
+                        {m.content}
+                      </Text>
+                    )}
+                  </Paper>
+                </Box>
+              ))}
 
-            {assistant.isPending && (
-              <Box style={{ alignSelf: 'flex-start' }}>
-                <Paper p="sm" radius="md" withBorder bg="white">
-                  <Loader size="xs" type="dots" />
-                </Paper>
-              </Box>
-            )}
-            <div ref={bottomRef} />
-          </Stack>
+              {!streaming && followups.length > 0 && (
+                <Group gap="xs" pt={4}>
+                  {followups.map((q) => (
+                    <Button
+                      key={q}
+                      variant="light"
+                      color="forest"
+                      size="compact-xs"
+                      radius="xl"
+                      onClick={() => send(q)}
+                    >
+                      {q}
+                    </Button>
+                  ))}
+                </Group>
+              )}
+            </Stack>
+          )}
         </ScrollArea>
 
         <TextInput
+          data-autofocus
           placeholder="Ask JP about your inventory…"
           value={input}
           onChange={(e) => setInput(e.currentTarget.value)}
+          disabled={streaming && !!lastIsEmptyAssistant}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
@@ -139,16 +181,19 @@ export function AssistantPanel({ opened, onClose }: AssistantPanelProps) {
             }
           }}
           rightSection={
-            <ActionIcon
-              variant="subtle"
-              onClick={() => send(input)}
-              disabled={!input.trim() || assistant.isPending}
-            >
-              <IconSend size={18} />
-            </ActionIcon>
+            streaming ? (
+              <Loader size="xs" />
+            ) : (
+              <ActionIcon variant="subtle" onClick={() => send(input)} disabled={!input.trim()}>
+                <IconSend size={18} />
+              </ActionIcon>
+            )
           }
         />
+        <Text size="xs" c="dimmed" ta="center">
+          Press <Kbd size="xs">⌘</Kbd> <Kbd size="xs">K</Kbd> anywhere to open JP
+        </Text>
       </Stack>
-    </Drawer>
+    </Modal>
   );
 }

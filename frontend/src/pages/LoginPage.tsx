@@ -2,6 +2,7 @@ import {
   Anchor,
   Button,
   Center,
+  Group,
   Paper,
   PasswordInput,
   Stack,
@@ -9,6 +10,7 @@ import {
   TextInput,
   Title,
 } from '@mantine/core';
+import { IconAsterisk } from '@tabler/icons-react';
 import { useForm } from '@mantine/form';
 import { notifications } from '@mantine/notifications';
 import { useState } from 'react';
@@ -49,14 +51,17 @@ export function LoginPage() {
 
   return (
     <Center mih="100vh" p="md">
-      <Paper withBorder shadow="md" p={32} radius="md" w={400} maw="100%">
-        <Title order={2} ta="center" mb={4}>
-          Welcome{' '}
-          <Text span inherit fs="italic">
-            back
+      <Paper withBorder shadow="xs" p={36} radius="md" w={400} maw="100%">
+        <Group justify="center" gap={8} mb="lg">
+          <IconAsterisk size={22} stroke={2.5} color="var(--brand-forest)" />
+          <Text fw={600} fz="lg" style={{ letterSpacing: '-0.01em' }}>
+            Kaizntree
           </Text>
+        </Group>
+        <Title order={2} ta="center" mb={4}>
+          Welcome <span className="accent">back</span>
         </Title>
-        <Text c="dimmed" size="sm" ta="center" mb="lg">
+        <Text c="dimmed" size="sm" ta="center" mb="xl">
           Sign in to your inventory workspace
         </Text>
         <form onSubmit={submit}>

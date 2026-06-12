@@ -23,7 +23,13 @@ import { theme } from './theme';
 // overrides the default white body/chrome regardless of CSS import order.
 const cssVariablesResolver: CSSVariablesResolver = () => ({
   variables: {},
-  light: { '--mantine-color-body': '#f8efe2' },
+  light: {
+    '--mantine-color-body': '#f8efe2',
+    // Hairline borders in a warm tone instead of cold gray — cards read as
+    // drawn-on-paper rather than boxed-in.
+    '--mantine-color-default-border': '#e7dccb',
+    '--mantine-color-gray-3': '#e7dccb',
+  },
   dark: {},
 });
 

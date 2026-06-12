@@ -8,6 +8,7 @@ import { useProducts } from '../api/products';
 import { useCreateSalesOrder, useSalesOrders } from '../api/salesOrders';
 import type { SalesOrder } from '../api/types';
 import { DataTable, type Column } from '../components/DataTable';
+import { DataActions } from '../components/DataActions';
 import { OrderFormModal, type OrderFormValues } from '../components/OrderFormModal';
 import { PageHeader } from '../components/PageHeader';
 import { QueryBoundary } from '../components/QueryBoundary';
@@ -78,11 +79,14 @@ export function SalesOrdersPage() {
   return (
     <>
       <PageHeader
+        eyebrow="Sales"
         title="Sales Orders"
         subtitle="Sell stock — COGS is drawn FIFO. Click an order to view or edit it."
         actionLabel="New sales order"
         onAction={modal.open}
-      />
+      >
+        <DataActions entity="sales-orders" label="Sales Orders" />
+      </PageHeader>
 
       <Card withBorder radius="md" p="md">
         <QueryBoundary isLoading={orders.isLoading} isError={orders.isError} error={orders.error}>

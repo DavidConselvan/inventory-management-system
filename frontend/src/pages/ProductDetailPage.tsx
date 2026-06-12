@@ -163,10 +163,10 @@ export function ProductDetailPage() {
             <QueryBoundary isLoading={financials.isLoading} isError={financials.isError} error={financials.error}>
               {financials.data && (
                 <SimpleGrid cols={{ base: 2, sm: 4 }}>
-                  <StatCard label="Revenue" value={money(financials.data.revenue)} icon={IconCash} color="teal" />
-                  <StatCard label="COGS" value={money(financials.data.cogs)} icon={IconReceiptTax} color="orange" />
-                  <StatCard label="Profit" value={money(financials.data.profit)} icon={IconTrendingUp} color="forest" />
-                  <StatCard label="Margin" value={percent(financials.data.margin_percent)} icon={IconTrendingUp} color="grape" />
+                  <StatCard label="Revenue" value={money(financials.data.revenue)} icon={IconCash} />
+                  <StatCard label="COGS" value={money(financials.data.cogs)} icon={IconReceiptTax} />
+                  <StatCard label="Profit" value={money(financials.data.profit)} icon={IconTrendingUp} />
+                  <StatCard label="Margin" value={percent(financials.data.margin_percent)} icon={IconTrendingUp} />
                 </SimpleGrid>
               )}
             </QueryBoundary>

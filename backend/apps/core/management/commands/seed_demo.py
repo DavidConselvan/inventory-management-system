@@ -99,33 +99,42 @@ class Command(BaseCommand):
             allocate_stock_fifo(item)
             return so
 
-        # 1. The worked example: profit 900, margin 900%.
         cold_brew = make_product(
             "Cold Brew Concentrate", "CB-001", Product.Unit.UNIT, "1L bottles"
         )
-        purchase(cold_brew, 100, 1, date(2024, 1, 5))
-        sell(cold_brew, 100, 10, date(2024, 2, 1))
-
-        # 2. Multiple lots at different costs, partial sale spanning both (FIFO).
         beans = make_product(
             "Single-Origin Beans", "BN-100", Product.Unit.KG, "Ethiopian, washed"
         )
-        purchase(beans, 50, 8, date(2024, 1, 10))
-        purchase(beans, 50, 9, date(2024, 1, 20))
-        sell(beans, 60, 15, date(2024, 2, 5))  # 50 @ $8 + 10 @ $9
-
-        # 3. Lots of stock still on hand (inventory value on the dashboard).
         matcha = make_product(
             "Matcha Powder", "MT-200", Product.Unit.G, "Ceremonial grade"
         )
-        purchase(matcha, 1000, 0.2, date(2024, 1, 15))
-        sell(matcha, 400, 0.8, date(2024, 2, 10))
-
-        # 4. A product purchased but not yet sold.
         oat_milk = make_product(
             "Oat Milk", "OM-300", Product.Unit.L, "Barista edition"
         )
-        purchase(oat_milk, 200, 1.5, date(2024, 1, 25))
+
+        # A year of trading so the dashboard's historical charts tell a story:
+        # twelve months, gentle growth (the 0.06 ramp) with seasonal wobble, and
+        # a unit cost that drifts up over time — so each month draws older,
+        # cheaper FIFO lots and margins stay realistic. We buy ~30% more than we
+        # sell each month, which keeps stock on hand and never oversells.
+        months = [date(2025, m, 1) for m in range(7, 13)]
+        months += [date(2026, m, 1) for m in range(1, 7)]
+        wobble = [1.00, 0.90, 1.10, 1.05, 0.95, 1.20, 1.15, 1.00, 1.25, 1.10, 1.30, 1.22]
+
+        # product, base monthly volume, sale price, starting cost, monthly cost drift
+        plan = [
+            (cold_brew, 80, 10, Decimal("1.00"), Decimal("0.04")),
+            (beans, 35, 15, Decimal("8.00"), Decimal("0.15")),
+            (matcha, 300, Decimal("0.80"), Decimal("0.20"), Decimal("0.01")),
+            (oat_milk, 90, Decimal("3.50"), Decimal("1.50"), Decimal("0.05")),
+        ]
+
+        for product, base, price, cost0, drift in plan:
+            for i, when in enumerate(months):
+                sell_qty = round(base * (1 + 0.06 * i) * wobble[i])
+                unit_cost = cost0 + drift * i
+                purchase(product, round(sell_qty * 1.3) + 1, unit_cost, when)
+                sell(product, sell_qty, price, when)
 
         self.stdout.write(
             self.style.SUCCESS(

@@ -5,17 +5,19 @@ import {
   Burger,
   Button,
   Group,
+  Kbd,
   Menu,
   NavLink,
   ScrollArea,
   Text,
   Title,
 } from '@mantine/core';
-import { useDisclosure } from '@mantine/hooks';
+import { useDisclosure, useHotkeys } from '@mantine/hooks';
 import {
   IconAsterisk,
   IconBox,
   IconChartPie,
+  IconFileSpreadsheet,
   IconLogout,
   IconPackage,
   IconShoppingCart,
@@ -33,6 +35,7 @@ const NAV = [
   { to: '/stock', label: 'Stock', icon: IconBox },
   { to: '/purchase-orders', label: 'Purchase Orders', icon: IconTruckDelivery },
   { to: '/sales-orders', label: 'Sales Orders', icon: IconShoppingCart },
+  { to: '/data', label: 'Import / Export', icon: IconFileSpreadsheet },
 ];
 
 export function AppLayout() {
@@ -46,6 +49,9 @@ export function AppLayout() {
     logout();
     navigate('/login');
   };
+
+  // ⌘K / Ctrl+K opens JP from anywhere — the [] lets it fire inside inputs too.
+  useHotkeys([['mod+K', () => assistant.open(), { preventDefault: true }]], []);
 
   return (
     <AppShell
@@ -71,6 +77,11 @@ export function AppLayout() {
               color="forest"
               size="xs"
               leftSection={<IconSparkles size={16} />}
+              rightSection={
+                <Kbd size="xs" visibleFrom="sm">
+                  ⌘K
+                </Kbd>
+              }
               onClick={assistant.open}
             >
               Ask JP
@@ -78,7 +89,7 @@ export function AppLayout() {
             <Menu position="bottom-end" withArrow>
               <Menu.Target>
                 <Group gap="xs" style={{ cursor: 'pointer' }}>
-                  <Avatar color="blue" radius="xl" size="sm">
+                  <Avatar color="forest" radius="xl" size="sm">
                     {user?.username?.[0]?.toUpperCase()}
                   </Avatar>
                   <Text size="sm" visibleFrom="sm">

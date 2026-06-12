@@ -64,6 +64,31 @@ api.interceptors.response.use(
   },
 );
 
+/**
+ * fetch() with the bearer token attached, retrying once through a token
+ * refresh on 401. Used for streaming endpoints where axios can't expose the
+ * response body as a stream.
+ */
+export async function authorizedFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const call = (token: string | null) =>
+    fetch(`${API_BASE_URL}${path}`, {
+      ...init,
+      headers: {
+        ...init.headers,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+
+  let res = await call(tokens.access);
+  if (res.status === 401 && tokens.refresh) {
+    refreshPromise = refreshPromise ?? refreshAccessToken();
+    const newAccess = await refreshPromise;
+    refreshPromise = null;
+    if (newAccess) res = await call(newAccess);
+  }
+  return res;
+}
+
 /** Pull a human-readable message out of a DRF error response. */
 export function errorMessage(error: unknown, fallback = 'Something went wrong'): string {
   if (axios.isAxiosError(error)) {

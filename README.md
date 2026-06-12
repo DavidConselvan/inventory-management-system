@@ -5,9 +5,15 @@ products, bring stock in with purchase orders, sell it with sales orders, and
 see profit per product and across the whole business. Every user only sees their
 own data.
 
+On top of the core CRUD it has three pieces that go past the brief: **JP**, an AI
+ops assistant that answers questions over your live data; **bulk CSV import and
+export** for every entity, with optional AI column mapping; and a **dashboard
+with historical trend charts** for revenue, COGS, profit and margin.
+
 The worked example from the brief (buy 100 units at $1, sell them at $10 for
-$1,000 revenue, $900 profit, 900% margin) is reproduced by the demo seed and
-checked by the test suite.
+$1,000 revenue, $900 profit, 900% margin) is checked by the test suite. The demo
+account is seeded with a year of trading so the dashboard, charts and FIFO
+behaviour are all populated on first run.
 
 ## Live demo
 
@@ -27,6 +33,9 @@ Log in with `demo` / `demo12345`.
 - [Architecture and key decisions](#architecture-and-key-decisions)
 - [Data model](#data-model)
 - [How profit is calculated](#how-profit-is-calculated)
+- [Dashboard and trends](#dashboard-and-trends)
+- [JP, the AI assistant](#jp-the-ai-assistant)
+- [Bulk CSV import and export](#bulk-csv-import-and-export)
 - [Project structure](#project-structure)
 - [API reference](#api-reference)
 - [Authentication and data isolation](#authentication-and-data-isolation)
@@ -70,15 +79,28 @@ API docs (Swagger UI) live at http://localhost:8000/api/docs/. For the Django
 admin, create a superuser with
 `docker compose exec backend python manage.py createsuperuser`.
 
+The JP assistant and AI column-mapping are off until you provide an Anthropic API
+key. Put it in `backend/.env.local` (gitignored) and start the backend with it:
+
+```bash
+echo "ANTHROPIC_API_KEY=sk-ant-..." > backend/.env.local
+docker compose --env-file backend/.env.local up -d backend
+```
+
+Everything else works without a key — the assistant endpoints just return 503 and
+CSV import falls back to heuristic column matching.
+
 ## Tech stack
 
 Backend: Python 3.12, Django 5.2, Django REST Framework, PostgreSQL, SimpleJWT
-for auth, drf-spectacular for the OpenAPI schema, django-filter, WhiteNoise and
-Gunicorn. Tests use pytest and pytest-django.
+for auth, drf-spectacular for the OpenAPI schema, django-filter, the Anthropic
+SDK for the JP assistant, WhiteNoise and Gunicorn. Tests use pytest and
+pytest-django.
 
-Frontend: TypeScript and React 19 (Vite), Mantine for components, Tailwind for
-the bits of utility styling Mantine doesn't cover, TanStack Query for server
-state, Axios for HTTP, and React Router.
+Frontend: TypeScript and React 19 (Vite), Mantine for components and charts,
+Tailwind for the bits of utility styling Mantine doesn't cover, TanStack Query
+for server state, Axios for HTTP, React Router, and react-markdown for JP's
+replies.
 
 Infra: Docker Compose for local dev and a Render Blueprint (`render.yaml`) for
 deployment.
@@ -241,6 +263,55 @@ re-allocates the new lines FIFO — the whole change rolls back if the new lines
 longer fit available stock. Purchase-order lines can only change while none of
 their received stock has been sold.
 
+## Dashboard and trends
+
+The dashboard leads with the headline numbers — revenue, COGS, profit, margin,
+plus amount purchased, inventory on hand and a product count — each with an inline
+sparkline. Below that is a trend chart that toggles between revenue, COGS, profit
+and margin month over month, then a revenue-vs-cost bar chart and a per-product
+breakdown table.
+
+The trend series needs no extra data: because COGS is realised at sale time (the
+FIFO allocations carry the cost of the lots drawn), grouping sales by month is a
+true profit-and-loss time series. `revenue_timeseries` in `apps/core/analytics.py`
+does the grouping and fills any empty months so the line stays continuous.
+
+## JP, the AI assistant
+
+JP answers plain-language questions about your inventory — "what's my best-margin
+product?", "show profit month over month" — over your live data. It opens as a
+command palette (⌘K, or the **Ask JP** button) and streams its answer back.
+
+It's a Claude tool-use loop (`apps/core/assistant.py`). JP can call a small set of
+read-only tools — account dashboard, product list, single-product lookup, and the
+monthly trend series — and every tool queries through `owner=user`, so JP can only
+ever see the requesting user's data, exactly like the REST API. The reply streams
+to the browser over Server-Sent Events; product names come back as links into the
+app, and headline figures render as metric tiles.
+
+JP needs an Anthropic API key (`ANTHROPIC_API_KEY`). Without one the assistant
+endpoints return 503 and the rest of the app works unchanged. The model is set by
+`ASSISTANT_MODEL` (default `claude-opus-4-8`).
+
+## Bulk CSV import and export
+
+Operators live in spreadsheets, so every entity (products, stock, purchase orders,
+sales orders) can be exported to CSV and bulk-imported from one — both per page
+(the **Export** / **Import** buttons on each list) and from a central **Import /
+Export** page.
+
+The design is deliberately hybrid (`apps/core/importing.py`):
+
+- A **deterministic engine** does all parsing, validation and writing. It reuses
+  the same serializers and FIFO/costing services as the API, so imported rows go
+  through the exact same rules — a sales-order import allocates stock FIFO and
+  reports any line that oversells. The whole file is one transaction: it commits
+  fully or not at all, and a dry run previews the result first.
+- The **AI is used only for the fuzzy part** the deterministic code is bad at:
+  mapping arbitrary spreadsheet column headers to the schema when they don't match
+  by name. That's one Claude call per import, not per row, and it degrades to
+  heuristic name-matching when no API key is set — so import works without a key.
+
 ## Project structure
 
 ```
@@ -248,7 +319,8 @@ backend/
   config/                 # settings (env-driven), urls, wsgi
   apps/
     core/                 # base owned model, owner-scoped viewset, IsOwner,
-                          #   profit analytics, dashboard, seed_demo
+                          #   profit analytics + trends, dashboard, JP assistant,
+                          #   CSV import/export engine, seed_demo
     accounts/             # register / me / JWT endpoints
     products/             # Product + per-product financials endpoint
     purchasing/           # PurchaseOrder + items (creates stock lots)
@@ -293,7 +365,14 @@ document is at `/api/schema/`.
 | `/stock-lots/`               | Full CRUD; POST adds stock manually, PUT corrects a lot.  |
 | `/purchase-orders/`          | CRUD with nested `items`; receiving creates stock lots.   |
 | `/sales-orders/`             | CRUD with nested `items`; selling and editing allocate FIFO. |
-| `/dashboard/`                | Account-wide totals plus a per-product breakdown.         |
+| `/dashboard/`                | Account-wide totals, per-product breakdown, monthly trend series. |
+| `/export/{entity}/`          | Download an entity as CSV.                                |
+| `/import/{entity}/template/` | Download a header-only CSV template.                      |
+| `/import/{entity}/`          | Import a CSV (`dry_run` previews; otherwise commits in one transaction). |
+| `/assistant/`                | Ask JP a question (single JSON reply). Needs `ANTHROPIC_API_KEY`. |
+| `/assistant/stream/`         | Ask JP, streamed as Server-Sent Events. Needs `ANTHROPIC_API_KEY`. |
+
+`{entity}` is one of `products`, `stock`, `purchase-orders`, `sales-orders`.
 
 Create a purchase order and receive stock in one request:
 
@@ -387,11 +466,18 @@ a Dockerised web service, and the frontend as a static site.
 3. After the first deploy, fill in the two cross-service URLs and redeploy:
    `CORS_ALLOWED_ORIGINS` on the backend points at the frontend URL, and
    `VITE_API_BASE_URL` on the frontend points at the backend URL plus `/api`.
+4. Optional: set `ANTHROPIC_API_KEY` on the backend service to enable JP and AI
+   column-mapping on the live demo (it's declared `sync: false`, so Render won't
+   ask for it during the blueprint step).
 
 Both services fit the free tier. On deploy the backend runs migrations, seeds
 the demo account (so you can log in at the live URL with demo / demo12345), and
 serves its static files through WhiteNoise. Note that free services cold-start
 after a period of inactivity, so the first request may take a little while.
+
+Seeding on startup uses `--skip-if-exists`, so it won't overwrite an existing
+demo account. To refresh an already-deployed demo with new sample data, run
+`python manage.py seed_demo` from the backend service shell.
 
 ## Known limitations and next steps
 
@@ -417,5 +503,5 @@ after a period of inactivity, so the first request may take a little while.
 - Each product has one unit. Converting within a dimension (e.g. receiving a
   kilogram product in grams) would be a natural extension — the unit dimensions
   are already modelled, so it's mostly a conversion layer on input.
-- Worth adding later: low-stock and expiry alerts for perishables, CSV
-  import/export, rotating refresh tokens, and rate limiting.
+- Worth adding later: low-stock and expiry alerts for perishables, rotating
+  refresh tokens, and rate limiting.

@@ -1,4 +1,12 @@
-import { Card, createTheme, Paper, type MantineColorsTuple } from '@mantine/core';
+import {
+  Badge,
+  Button,
+  Card,
+  createTheme,
+  Paper,
+  Table,
+  type MantineColorsTuple,
+} from '@mantine/core';
 
 const forest: MantineColorsTuple = [
   '#eef5f0',
@@ -13,11 +21,26 @@ const forest: MantineColorsTuple = [
   '#123524',
 ];
 
+// Warm clay — the one accent we allow beside forest, drawn from the brand's
+// kraft-paper imagery. Keeps the palette to two families instead of a rainbow.
+const clay: MantineColorsTuple = [
+  '#fbf3ea',
+  '#f1e0cc',
+  '#e6c8a6',
+  '#dbae7e',
+  '#d29a5f',
+  '#cd8d4b',
+  '#cb863f',
+  '#b37231',
+  '#a06529',
+  '#8b561f',
+];
+
 export const theme = createTheme({
   primaryColor: 'forest',
   primaryShade: { light: 9 },
   autoContrast: true,
-  colors: { forest },
+  colors: { forest, clay },
 
   defaultRadius: 'md',
   fontFamily:
@@ -28,7 +51,11 @@ export const theme = createTheme({
   },
 
   components: {
-    Card: Card.extend({ defaultProps: { radius: 'lg', withBorder: true } }),
-    Paper: Paper.extend({ defaultProps: { radius: 'lg' } }),
+    Card: Card.extend({ defaultProps: { radius: 'md', withBorder: true, shadow: 'none' } }),
+    Paper: Paper.extend({ defaultProps: { radius: 'md' } }),
+    Button: Button.extend({ defaultProps: { fw: 500 } }),
+    // Status pills read as sentence case ("Received", "Confirmed"), not SHOUTING.
+    Badge: Badge.extend({ defaultProps: { tt: 'none', fw: 600, radius: 'sm' } }),
+    Table: Table.extend({ defaultProps: { verticalSpacing: 'sm', horizontalSpacing: 'md' } }),
   },
 });

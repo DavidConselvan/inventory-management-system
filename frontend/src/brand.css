@@ -4,6 +4,9 @@
 :root {
   --brand-cream: #f8efe2;
   --brand-forest: #123524;
+  --brand-clay: #cb863f;
+  /* Warm taupe for de-emphasised italic accents in headlines. */
+  --brand-muted: #a79e90;
 }
 
 body {
@@ -16,7 +19,28 @@ h1,
 h2,
 h3,
 .mantine-Title-root {
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
+}
+
+/* Lining, tabular figures so columns of money line up and don't wobble. */
+.tnum {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: 'tnum' 1, 'lnum' 1;
+}
+
+/* Muted italic accent for headline spans (mirrors the marketing site). */
+.accent {
+  font-style: italic;
+  color: var(--brand-muted);
+}
+
+/* Table headers as quiet uppercase labels rather than bold black text. */
+.mantine-Table-th {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--mantine-color-dimmed);
 }
 
 /* Markdown rendered inside JP's chat replies. */
@@ -45,12 +69,56 @@ h3,
 .jp-md strong {
   font-weight: 600;
 }
+.jp-md a {
+  color: var(--brand-forest);
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--brand-forest) 35%, transparent);
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.jp-md a:hover {
+  text-decoration-color: var(--brand-forest);
+}
 .jp-md code {
   background: rgba(0, 0, 0, 0.06);
   padding: 0.05rem 0.3rem;
   border-radius: 4px;
   font-size: 0.85em;
 }
+/* Metric tiles rendered from a ```jp-metrics``` block in JP's replies. */
+.jp-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.25rem 0 0.6rem;
+}
+.jp-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 120px;
+  flex: 1 1 0;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: 8px;
+  background: var(--brand-cream);
+}
+.jp-metric-label {
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mantine-color-dimmed);
+}
+.jp-metric-value {
+  font-family: Fraunces, Georgia, serif;
+  font-size: 1.1rem;
+  font-weight: 500;
+  line-height: 1.1;
+  color: var(--brand-forest);
+}
+
 .jp-md table {
   border-collapse: collapse;
   margin: 0.25rem 0 0.5rem;

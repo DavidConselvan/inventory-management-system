@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppLayout } from './components/AppLayout';
 import { ProtectedRoute } from './auth/ProtectedRoute';
 import { DashboardPage } from './pages/DashboardPage';
+import { DataPage } from './pages/DataPage';
 import { LoginPage } from './pages/LoginPage';
 import { ProductDetailPage } from './pages/ProductDetailPage';
 import { ProductsPage } from './pages/ProductsPage';
@@ -27,6 +28,7 @@ export default function App() {
           <Route path="/purchase-orders/:id" element={<PurchaseOrderDetailPage />} />
           <Route path="/sales-orders" element={<SalesOrdersPage />} />
           <Route path="/sales-orders/:id" element={<SalesOrderDetailPage />} />
+          <Route path="/data" element={<DataPage />} />
           <Route path="/stock" element={<StockPage />} />
         </Route>
       </Route>

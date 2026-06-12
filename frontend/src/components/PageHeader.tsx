@@ -2,18 +2,22 @@ import { Button, Group, Stack, Text, Title } from '@mantine/core';
 import { IconPlus } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
 
+import { SectionLabel } from './SectionLabel';
+
 interface PageHeaderProps {
-  title: string;
+  title: ReactNode;
   subtitle?: string;
+  eyebrow?: string;
   actionLabel?: string;
   onAction?: () => void;
   children?: ReactNode;
 }
 
-export function PageHeader({ title, subtitle, actionLabel, onAction, children }: PageHeaderProps) {
+export function PageHeader({ title, subtitle, eyebrow, actionLabel, onAction, children }: PageHeaderProps) {
   return (
-    <Group justify="space-between" align="flex-end" mb="lg" wrap="wrap">
-      <Stack gap={2}>
+    <Group justify="space-between" align="flex-end" mb="xl" wrap="wrap">
+      <Stack gap={6}>
+        {eyebrow && <SectionLabel>{eyebrow}</SectionLabel>}
         <Title order={2}>{title}</Title>
         {subtitle && (
           <Text c="dimmed" size="sm">
@@ -21,12 +25,14 @@ export function PageHeader({ title, subtitle, actionLabel, onAction, children }:
           </Text>
         )}
       </Stack>
-      {children}
-      {actionLabel && onAction && (
-        <Button leftSection={<IconPlus size={16} />} onClick={onAction}>
-          {actionLabel}
-        </Button>
-      )}
+      <Group gap="xs" wrap="wrap">
+        {children}
+        {actionLabel && onAction && (
+          <Button leftSection={<IconPlus size={16} />} onClick={onAction}>
+            {actionLabel}
+          </Button>
+        )}
+      </Group>
     </Group>
   );
 }

@@ -111,9 +111,19 @@ export interface ProductFinancialRow extends Financials {
   unit: Unit;
 }
 
+export interface TrendPoint {
+  period: string;
+  label: string;
+  revenue: string;
+  cogs: string;
+  profit: string;
+  margin_percent: string | null;
+}
+
 export interface Dashboard {
   totals: Financials;
   products: ProductFinancialRow[];
+  trend: TrendPoint[];
   product_count: number;
   purchase_order_count: number;
   sales_order_count: number;

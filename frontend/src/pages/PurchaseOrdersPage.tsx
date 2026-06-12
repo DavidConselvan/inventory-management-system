@@ -8,6 +8,7 @@ import { useProducts } from '../api/products';
 import { useCreatePurchaseOrder, usePurchaseOrders } from '../api/purchaseOrders';
 import type { PurchaseOrder } from '../api/types';
 import { DataTable, type Column } from '../components/DataTable';
+import { DataActions } from '../components/DataActions';
 import { OrderFormModal, type OrderFormValues } from '../components/OrderFormModal';
 import { PageHeader } from '../components/PageHeader';
 import { QueryBoundary } from '../components/QueryBoundary';
@@ -68,11 +69,14 @@ export function PurchaseOrdersPage() {
   return (
     <>
       <PageHeader
+        eyebrow="Procurement"
         title="Purchase Orders"
         subtitle="Buy stock — each line creates a costed lot. Click an order to view or edit it."
         actionLabel="New purchase order"
         onAction={modal.open}
-      />
+      >
+        <DataActions entity="purchase-orders" label="Purchase Orders" />
+      </PageHeader>
 
       <Card withBorder radius="md" p="md">
         <QueryBoundary isLoading={orders.isLoading} isError={orders.isError} error={orders.error}>

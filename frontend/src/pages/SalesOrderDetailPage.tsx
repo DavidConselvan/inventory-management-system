@@ -143,9 +143,9 @@ export function SalesOrderDetailPage() {
             </Group>
 
             <SimpleGrid cols={{ base: 1, sm: 3 }}>
-              <StatCard label="Revenue" value={money(so.total_revenue)} icon={IconCash} color="teal" />
-              <StatCard label="COGS" value={money(so.total_cogs)} icon={IconReceiptTax} color="orange" />
-              <StatCard label="Profit" value={money(so.total_profit)} icon={IconTrendingUp} color="forest" />
+              <StatCard label="Revenue" value={money(so.total_revenue)} icon={IconCash} />
+              <StatCard label="COGS" value={money(so.total_cogs)} icon={IconReceiptTax} />
+              <StatCard label="Profit" value={money(so.total_profit)} icon={IconTrendingUp} />
             </SimpleGrid>
 
             <Card withBorder radius="md" p="lg">
