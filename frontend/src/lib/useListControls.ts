@@ -1,5 +1,5 @@
 import { useDebouncedValue } from '@mantine/hooks';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import type { ListParams } from '../api/types';
 
@@ -22,10 +22,15 @@ export function useListControls({ ordering: initialOrdering, pageSize = 10, filt
   const [ordering, setOrdering] = useState(initialOrdering);
   const [page, setPage] = useState(1);
 
-  const filterKey = JSON.stringify(filters);
-  useEffect(() => {
+  // When the result set changes (search / ordering / filters), jump back to
+  // page 1. Adjusting state during render is React's recommended alternative to
+  // doing this in an effect (no extra commit, no cascading render).
+  const resetKey = JSON.stringify([debounced, ordering, filters]);
+  const [prevKey, setPrevKey] = useState(resetKey);
+  if (resetKey !== prevKey) {
+    setPrevKey(resetKey);
     setPage(1);
-  }, [debounced, ordering, filterKey]);
+  }
 
   const onOrder = (field: string) =>
     setOrdering((current) => (current === field ? `-${field}` : field));
